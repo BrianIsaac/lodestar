@@ -4,21 +4,19 @@ import asyncio
 import json
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from qwen_viet.agents.background import run_background_cycle
-from qwen_viet.agents.compliance import apply_compliance
-from qwen_viet.config import settings
-from qwen_viet.database import get_db, init_db
-from qwen_viet.models import (
+from lodestar.agents.background import run_background_cycle
+from lodestar.config import settings
+from lodestar.database import get_db, init_db
+from lodestar.models import (
     ChatMessage,
     ChatResponse,
     InsightCard,
     InsightFeed,
-    ProductFilters,
     ProductInfo,
     SavingsGoal,
     ScenarioRequest,
@@ -74,7 +72,7 @@ async def startup() -> None:
     settings.ensure_dirs()
     await init_db()
 
-    from qwen_viet.rag.indexer import init_rag
+    from lodestar.rag.indexer import init_rag
     count = init_rag()
     logger.info("RAG initialised with %d products", count)
 
@@ -84,7 +82,7 @@ async def startup() -> None:
     await db.close()
 
     if row[0] == 0:
-        from qwen_viet.data.seed_data import seed
+        from lodestar.data.seed_data import seed
         await seed()
         logger.info("Seeded synthetic data")
 
@@ -157,7 +155,6 @@ async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
     finally:
         await db.close()
 
-    from qwen_viet.learning.journal import update_importance_post_outcome
     # dismissal = negative signal for any lesson that generated this insight
     # (simplified: we don't track which lesson generated which insight in PoC)
 
@@ -178,7 +175,7 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         ChatResponse with assistant message and optional chart.
     """
     try:
-        from qwen_viet.agents.orchestrator import chat
+        from lodestar.agents.orchestrator import chat
 
         messages = [ChatMessage(role="user", content=body.message, insight_id=insight_id)]
         response = await chat(messages, body.customer_id, body.insight_context)
@@ -201,7 +198,7 @@ async def chat_general(body: ChatRequest) -> ChatResponse:
         ChatResponse with assistant message.
     """
     try:
-        from qwen_viet.agents.orchestrator import chat
+        from lodestar.agents.orchestrator import chat
 
         messages = [ChatMessage(role="user", content=body.message)]
         return await chat(messages, body.customer_id)
@@ -224,7 +221,7 @@ async def simulate_scenario(request: ScenarioRequest) -> ScenarioResult:
     Returns:
         ScenarioResult with per-entity impact.
     """
-    from qwen_viet.tools.simulation import simulate_scenario as _simulate
+    from lodestar.tools.simulation import simulate_scenario as _simulate
 
     return await _simulate(
         customer_id=request.customer_id,
@@ -277,7 +274,7 @@ async def create_goal(body: CreateGoalRequest) -> SavingsGoal:
     Returns:
         The created goal.
     """
-    from qwen_viet.tools.goals import create_goal as _create
+    from lodestar.tools.goals import create_goal as _create
 
     return await _create(
         customer_id=body.customer_id,
@@ -300,7 +297,7 @@ async def search_products(query: str, customer_id: str | None = None) -> list[Pr
     Returns:
         Ranked product list.
     """
-    from qwen_viet.tools.products import search_products as _search
+    from lodestar.tools.products import search_products as _search
 
     return await _search(query)
 

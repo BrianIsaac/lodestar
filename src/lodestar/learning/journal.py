@@ -11,9 +11,9 @@ from datetime import datetime
 
 import numpy as np
 
-from qwen_viet.database import get_db
-from qwen_viet.models import CustomerLesson
-from qwen_viet.rag.embeddings import embed_texts
+from lodestar.database import get_db
+from lodestar.models import CustomerLesson
+from lodestar.rag.embeddings import embed_texts
 
 SIMILARITY_THRESHOLD = 0.85
 

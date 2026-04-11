@@ -6,7 +6,7 @@ be an LLM classifier with higher accuracy on edge cases.
 
 import re
 
-from qwen_viet.models import ComplianceClass
+from lodestar.models import ComplianceClass
 
 ADVICE_PATTERNS = [
     r"(?i)bạn nên",

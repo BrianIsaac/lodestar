@@ -2,11 +2,11 @@
 
 import asyncio
 
-from qwen_viet.data.synthetic import (
+from lodestar.data.synthetic import (
     generate_transactions_for_customer,
     plant_life_event,
 )
-from qwen_viet.database import get_db, init_db
+from lodestar.database import get_db, init_db
 
 CUSTOMERS = [
     {

@@ -5,8 +5,8 @@ from pathlib import Path
 
 from qdrant_client import QdrantClient, models
 
-from qwen_viet.config import settings
-from qwen_viet.rag.embeddings import embed_texts
+from lodestar.config import settings
+from lodestar.rag.embeddings import embed_texts
 
 COLLECTION_NAME = "products"
 CATALOGUE_PATH = Path(__file__).parent.parent / "data" / "products_catalogue.json"

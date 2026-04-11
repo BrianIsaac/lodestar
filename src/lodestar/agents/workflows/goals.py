@@ -4,10 +4,10 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from qwen_viet.models import ChartSpec, GoalProjection, IncomePattern, SavingsRate
-from qwen_viet.tools.charts import generate_goal_progress_chart
-from qwen_viet.tools.goals import compute_savings_rate, project_goal_completion
-from qwen_viet.tools.spending import compute_income_pattern
+from lodestar.models import ChartSpec, GoalProjection, IncomePattern, SavingsRate
+from lodestar.tools.charts import generate_goal_progress_chart
+from lodestar.tools.goals import compute_savings_rate, project_goal_completion
+from lodestar.tools.spending import compute_income_pattern
 
 
 class GoalState(TypedDict):
@@ -46,7 +46,7 @@ def build_chart(state: GoalState) -> dict:
     if not projection:
         return {"chart_spec": None}
 
-    from qwen_viet.database import get_db
+    from lodestar.database import get_db
     import asyncio
 
     async def _get_goal():
@@ -57,7 +57,7 @@ def build_chart(state: GoalState) -> dict:
             )
             row = await cursor.fetchone()
             if row:
-                from qwen_viet.models import SavingsGoal
+                from lodestar.models import SavingsGoal
                 return SavingsGoal(
                     goal_id=row["goal_id"],
                     customer_id=row["customer_id"],

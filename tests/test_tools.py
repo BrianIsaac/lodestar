@@ -3,7 +3,7 @@
 import asyncio
 from datetime import date, datetime
 
-from qwen_viet.models import (
+from lodestar.models import (
     AccountBalance,
     ChartSpec,
     CohortInsight,
@@ -197,7 +197,7 @@ class TestSpendingTools:
     """Test deterministic spending tools against seeded data."""
 
     async def test_compute_spending_summary(self) -> None:
-        from qwen_viet.tools.spending import compute_spending_summary
+        from lodestar.tools.spending import compute_spending_summary
 
         summary = await compute_spending_summary("C001", "2025-09")
         assert summary.total > 0
@@ -208,7 +208,7 @@ class TestSpendingTools:
         assert 99.0 <= pct_sum <= 101.0, f"Percentages sum to {pct_sum}"
 
     async def test_compute_income_pattern(self) -> None:
-        from qwen_viet.tools.spending import compute_income_pattern
+        from lodestar.tools.spending import compute_income_pattern
 
         pattern = await compute_income_pattern("C001")
         assert pattern.detected_payday is not None
@@ -217,20 +217,20 @@ class TestSpendingTools:
         assert pattern.regularity_score > 0.5
 
     async def test_detect_anomalies(self) -> None:
-        from qwen_viet.tools.spending import detect_anomalies
+        from lodestar.tools.spending import detect_anomalies
 
         anomalies = await detect_anomalies("C001", "2026-01")
         assert isinstance(anomalies, list)
 
     async def test_detect_recurring_charges(self) -> None:
-        from qwen_viet.tools.spending import detect_recurring_charges
+        from lodestar.tools.spending import detect_recurring_charges
 
         charges = await detect_recurring_charges("C001")
         assert len(charges) > 0
         assert all(c.average_amount > 0 for c in charges)
 
     async def test_mom_change_tool(self) -> None:
-        from qwen_viet.tools.spending import compute_month_over_month_change
+        from lodestar.tools.spending import compute_month_over_month_change
 
         changes = await compute_month_over_month_change("C001", "food")
         assert len(changes) > 0
@@ -240,7 +240,7 @@ class TestChartTools:
     """Test chart spec generators."""
 
     def test_spending_chart_donut(self) -> None:
-        from qwen_viet.tools.charts import generate_spending_chart
+        from lodestar.tools.charts import generate_spending_chart
 
         summary = SpendingSummary(
             customer_id="C001",
@@ -255,7 +255,7 @@ class TestChartTools:
         assert len(chart.data["labels"]) == 3
 
     def test_goal_progress_chart(self) -> None:
-        from qwen_viet.tools.charts import generate_goal_progress_chart
+        from lodestar.tools.charts import generate_goal_progress_chart
 
         goal = SavingsGoal(goal_id="G1", customer_id="C1", name="Holiday", target_amount=20_000_000, current_amount=14_000_000)
         proj = GoalProjection(goal_id="G1", projected_date="2026-08", monthly_required=1_200_000, on_track=True, confidence=0.8)
@@ -264,7 +264,7 @@ class TestChartTools:
         assert chart.data["progress_pct"] == 70.0
 
     def test_cashflow_waterfall(self) -> None:
-        from qwen_viet.tools.charts import generate_cashflow_waterfall
+        from lodestar.tools.charts import generate_cashflow_waterfall
 
         chart = generate_cashflow_waterfall(
             income=12_000_000,
@@ -281,14 +281,14 @@ class TestGoalTools:
     """Test goal and financial projection tools."""
 
     async def test_savings_rate(self) -> None:
-        from qwen_viet.tools.goals import compute_savings_rate
+        from lodestar.tools.goals import compute_savings_rate
 
         rate = await compute_savings_rate("C001")
         assert rate.rate != 0, "Savings rate should be computed (non-zero)"
         assert rate.average_monthly_savings != 0, "Monthly savings should be computed"
 
     async def test_loan_affordability(self) -> None:
-        from qwen_viet.tools.goals import calculate_loan_affordability
+        from lodestar.tools.goals import calculate_loan_affordability
 
         result = await calculate_loan_affordability(
             customer_id="C001",
@@ -305,7 +305,7 @@ class TestSimulationTools:
     """Test cross-entity scenario simulation."""
 
     async def test_home_purchase_scenario(self) -> None:
-        from qwen_viet.tools.simulation import simulate_scenario
+        from lodestar.tools.simulation import simulate_scenario
 
         result = await simulate_scenario(
             customer_id="C002",

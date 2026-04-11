@@ -11,11 +11,11 @@ import logging
 import uuid
 from datetime import date, timedelta
 
-from qwen_viet.agents.compliance import apply_compliance
-from qwen_viet.agents.triggers import TriggerEvent, TriggerType, run_all_triggers
-from qwen_viet.config import settings
-from qwen_viet.database import get_db
-from qwen_viet.models import InsightCard, InsightSeverity, Transaction
+from lodestar.agents.compliance import apply_compliance
+from lodestar.agents.triggers import TriggerEvent, TriggerType, run_all_triggers
+from lodestar.config import settings
+from lodestar.database import get_db
+from lodestar.models import InsightCard, InsightSeverity, Transaction
 
 logger = logging.getLogger(__name__)
 

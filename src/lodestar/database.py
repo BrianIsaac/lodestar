@@ -2,7 +2,7 @@
 
 import aiosqlite
 
-from qwen_viet.config import settings
+from lodestar.config import settings
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS customers (

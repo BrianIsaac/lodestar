@@ -1,8 +1,8 @@
 """Product search, comparison, and eligibility tools."""
 
-from qwen_viet.database import get_db
-from qwen_viet.models import ComparisonTable, EligibilityResult, ProductFilters, ProductInfo
-from qwen_viet.rag import retriever
+from lodestar.database import get_db
+from lodestar.models import ComparisonTable, EligibilityResult, ProductFilters, ProductInfo
+from lodestar.rag import retriever
 
 
 async def search_products(
@@ -62,7 +62,7 @@ async def check_eligibility(
     Returns:
         EligibilityResult with pass/fail and reasons.
     """
-    from qwen_viet.rag.indexer import COLLECTION_NAME, get_qdrant_client
+    from lodestar.rag.indexer import COLLECTION_NAME, get_qdrant_client
     from qdrant_client import models as qmodels
 
     client = get_qdrant_client()

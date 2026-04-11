@@ -5,14 +5,14 @@ from datetime import date, datetime
 
 import numpy_financial as npf
 
-from qwen_viet.database import get_db
-from qwen_viet.models import (
+from lodestar.database import get_db
+from lodestar.models import (
     AffordabilityResult,
     GoalProjection,
     SavingsGoal,
     SavingsRate,
 )
-from qwen_viet.tools.spending import compute_income_pattern, compute_spending_summary
+from lodestar.tools.spending import compute_income_pattern, compute_spending_summary
 
 
 async def create_goal(

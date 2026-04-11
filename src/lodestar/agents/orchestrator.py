@@ -10,9 +10,9 @@ import logging
 
 from openai import AsyncOpenAI
 
-from qwen_viet.agents.compliance import apply_compliance
-from qwen_viet.config import settings
-from qwen_viet.models import ChatMessage, ChatResponse, ChartSpec
+from lodestar.agents.compliance import apply_compliance
+from lodestar.config import settings
+from lodestar.models import ChatMessage, ChatResponse, ChartSpec
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,7 @@ async def _execute_tool(name: str, arguments: dict) -> str:
         JSON string of tool results.
     """
     if name == "spending_analysis":
-        from qwen_viet.agents.workflows.spending import spending_graph
+        from lodestar.agents.workflows.spending import spending_graph
         result = await spending_graph.ainvoke({
             "customer_id": arguments["customer_id"],
             "period": arguments["period"],
@@ -104,7 +104,7 @@ async def _execute_tool(name: str, arguments: dict) -> str:
         }, ensure_ascii=False)
 
     elif name == "product_search":
-        from qwen_viet.agents.workflows.product_match import product_match_graph
+        from lodestar.agents.workflows.product_match import product_match_graph
         result = await product_match_graph.ainvoke({
             "query": arguments["query"],
             "customer_id": arguments.get("customer_id"),
@@ -113,7 +113,7 @@ async def _execute_tool(name: str, arguments: dict) -> str:
         return json.dumps({"insight_text": result["insight_text"]}, ensure_ascii=False)
 
     elif name == "scenario_simulation":
-        from qwen_viet.agents.workflows.scenario import scenario_graph
+        from lodestar.agents.workflows.scenario import scenario_graph
         result = await scenario_graph.ainvoke({
             "customer_id": arguments["customer_id"],
             "scenario_type": arguments["scenario_type"],

@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from qwen_viet.config import settings
-from qwen_viet.models import ProductFilters
+from lodestar.config import settings
+from lodestar.models import ProductFilters
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -16,7 +16,7 @@ def setup_rag():
     original_path = settings.qdrant_path
     settings.qdrant_path = "data/qdrant_test"
 
-    from qwen_viet.rag.indexer import init_rag
+    from lodestar.rag.indexer import init_rag
     count = init_rag()
     print(f"Indexed {count} products")
 
@@ -30,14 +30,14 @@ class TestRagPipeline:
     """Test hybrid search, filtering, and performance."""
 
     def test_basic_search_returns_results(self) -> None:
-        from qwen_viet.rag.retriever import search_products
+        from lodestar.rag.retriever import search_products
 
         results = search_products("thẻ tín dụng")
         assert len(results) > 0
         assert all(r.product_id for r in results)
 
     def test_vietnamese_credit_card_query(self) -> None:
-        from qwen_viet.rag.retriever import search_products
+        from lodestar.rag.retriever import search_products
 
         results = search_products("thẻ tín dụng cho lương 10 triệu")
         assert len(results) > 0
@@ -45,7 +45,7 @@ class TestRagPipeline:
         assert has_credit_card, f"Expected credit card in results, got: {[r.product_type for r in results]}"
 
     def test_payload_filter_by_type(self) -> None:
-        from qwen_viet.rag.retriever import search_products
+        from lodestar.rag.retriever import search_products
 
         filters = ProductFilters(product_type="savings")
         results = search_products("tiết kiệm lãi suất cao", filters)
@@ -53,7 +53,7 @@ class TestRagPipeline:
         assert all(r.product_type == "savings" for r in results)
 
     def test_payload_filter_by_income(self) -> None:
-        from qwen_viet.rag.retriever import search_products
+        from lodestar.rag.retriever import search_products
 
         filters = ProductFilters(min_income_lte=5_000_000)
         results = search_products("vay tiêu dùng", filters)
@@ -62,7 +62,7 @@ class TestRagPipeline:
                 assert r.min_income <= 5_000_000, f"{r.name_vi} requires {r.min_income}"
 
     def test_payload_filter_by_entity(self) -> None:
-        from qwen_viet.rag.retriever import search_products
+        from lodestar.rag.retriever import search_products
 
         filters = ProductFilters(entity="life")
         results = search_products("bảo hiểm", filters)
@@ -74,7 +74,7 @@ class TestRagPipeline:
         pass
 
     def test_query_latency(self) -> None:
-        from qwen_viet.rag.retriever import search_products
+        from lodestar.rag.retriever import search_products
 
         start = time.time()
         search_products("home loan")
@@ -86,19 +86,19 @@ class TestProductTools:
     """Test product tool wrappers."""
 
     async def test_search_products_tool(self) -> None:
-        from qwen_viet.tools.products import search_products
+        from lodestar.tools.products import search_products
 
         results = await search_products("credit card cashback")
         assert len(results) > 0
 
     async def test_check_eligibility_pass(self) -> None:
-        from qwen_viet.tools.products import check_eligibility
+        from lodestar.tools.products import check_eligibility
 
         result = await check_eligibility("C002", "SB-CC-001")
         assert result.eligible is True
 
     async def test_check_eligibility_fail(self) -> None:
-        from qwen_viet.tools.products import check_eligibility
+        from lodestar.tools.products import check_eligibility
 
         result = await check_eligibility("C003", "SB-CC-002")
         assert result.eligible is False

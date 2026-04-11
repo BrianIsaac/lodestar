@@ -2,9 +2,9 @@
 
 import numpy_financial as npf
 
-from qwen_viet.database import get_db
-from qwen_viet.models import EntityImpact, ScenarioResult
-from qwen_viet.tools.spending import compute_income_pattern
+from lodestar.database import get_db
+from lodestar.models import EntityImpact, ScenarioResult
+from lodestar.tools.spending import compute_income_pattern
 
 
 async def simulate_scenario(

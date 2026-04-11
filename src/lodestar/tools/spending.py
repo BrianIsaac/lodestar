@@ -2,8 +2,8 @@
 
 from datetime import date, timedelta
 
-from qwen_viet.database import get_db
-from qwen_viet.models import (
+from lodestar.database import get_db
+from lodestar.models import (
     IncomePattern,
     MoMChange,
     RecurringCharge,

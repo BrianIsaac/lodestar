@@ -2,8 +2,8 @@
 
 from datetime import date, timedelta
 
-from qwen_viet.agents.compliance import ComplianceClass, apply_compliance, classify_output
-from qwen_viet.agents.triggers import (
+from lodestar.agents.compliance import ComplianceClass, apply_compliance, classify_output
+from lodestar.agents.triggers import (
     TriggerType,
     check_budget_threshold,
     check_life_event_pattern,
@@ -12,7 +12,7 @@ from qwen_viet.agents.triggers import (
     check_velocity_anomaly,
     run_all_triggers,
 )
-from qwen_viet.models import Transaction
+from lodestar.models import Transaction
 
 
 def _make_txn(customer_id: str = "C001", amount: float = -100_000,
@@ -134,8 +134,8 @@ class TestBackgroundAgent:
     """Test the background agent cycle against seeded data."""
 
     async def test_generates_insight_cards(self) -> None:
-        from qwen_viet.agents.background import run_background_cycle
-        from qwen_viet.database import get_db
+        from lodestar.agents.background import run_background_cycle
+        from lodestar.database import get_db
 
         db = await get_db()
         await db.execute("DELETE FROM insight_cards")

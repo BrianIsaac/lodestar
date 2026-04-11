@@ -2,7 +2,7 @@
 
 from sentence_transformers import SentenceTransformer
 
-from qwen_viet.config import settings
+from lodestar.config import settings
 
 _model: SentenceTransformer | None = None
 

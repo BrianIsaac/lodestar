@@ -2,9 +2,9 @@
 
 from qdrant_client import models
 
-from qwen_viet.models import ProductFilters, ProductInfo
-from qwen_viet.rag.embeddings import embed_texts
-from qwen_viet.rag.indexer import COLLECTION_NAME, get_qdrant_client
+from lodestar.models import ProductFilters, ProductInfo
+from lodestar.rag.embeddings import embed_texts
+from lodestar.rag.indexer import COLLECTION_NAME, get_qdrant_client
 
 
 def _build_filter(filters: ProductFilters | None) -> models.Filter | None:

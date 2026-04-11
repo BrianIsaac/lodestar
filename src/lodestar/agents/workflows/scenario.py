@@ -4,8 +4,8 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from qwen_viet.models import ChartSpec, ScenarioResult
-from qwen_viet.tools.simulation import simulate_scenario
+from lodestar.models import ChartSpec, ScenarioResult
+from lodestar.tools.simulation import simulate_scenario
 
 
 class ScenarioState(TypedDict):

@@ -36,13 +36,13 @@ uv sync
 uv sync --extra dev
 
 # 2. Seed synthetic data (5 Vietnamese customers, 12 months of transactions)
-uv run python -m qwen_viet.data.seed_data
+uv run python -m lodestar.data.seed_data
 
 # 3. Run tests
 uv run pytest
 
 # 4. Start backend (requires Ollama with qwen3:14b pulled)
-CUDA_VISIBLE_DEVICES="" uv run uvicorn qwen_viet.api:app --port 8000
+CUDA_VISIBLE_DEVICES="" uv run uvicorn lodestar.api:app --port 8000
 
 # 5. Start frontend
 cd frontend
@@ -54,10 +54,10 @@ Open <http://localhost:3000>.
 ## Project Structure
 
 ```
-qwen-viet/
+lodestar/
 ├── docs/                          # 17 research documents
 ├── plans/                         # Implementation plan
-├── src/qwen_viet/
+├── src/lodestar/
 │   ├── api.py                     # FastAPI endpoints
 │   ├── config.py                  # Pydantic settings
 │   ├── database.py                # SQLite schema

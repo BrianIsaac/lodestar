@@ -2,8 +2,8 @@
 
 import pytest
 
-from qwen_viet.database import get_db
-from qwen_viet.models import CustomerLesson
+from lodestar.database import get_db
+from lodestar.models import CustomerLesson
 
 
 @pytest.fixture(autouse=True)
@@ -22,7 +22,7 @@ class TestJournal:
     """Test customer learning journal CRUD and deduplication."""
 
     async def test_add_new_lesson(self) -> None:
-        from qwen_viet.learning.journal import add_or_evolve_lesson
+        from lodestar.learning.journal import add_or_evolve_lesson
 
         lesson = CustomerLesson(
             lesson_id="L-test-001",
@@ -38,7 +38,7 @@ class TestJournal:
         assert stored.times_evolved == 0
 
     async def test_retrieve_lessons(self) -> None:
-        from qwen_viet.learning.journal import add_or_evolve_lesson, get_relevant_lessons
+        from lodestar.learning.journal import add_or_evolve_lesson, get_relevant_lessons
 
         await add_or_evolve_lesson(CustomerLesson(
             lesson_id="L-ret-001",
@@ -54,7 +54,7 @@ class TestJournal:
         assert any("food" in l.insight.lower() or "Tet" in l.insight for l in lessons)
 
     async def test_semantic_dedup_merges_similar(self) -> None:
-        from qwen_viet.learning.journal import add_or_evolve_lesson
+        from lodestar.learning.journal import add_or_evolve_lesson
 
         lesson1 = CustomerLesson(
             lesson_id="L-dup-001",
@@ -86,7 +86,7 @@ class TestJournal:
         assert row[0] == 1, f"Expected 1 merged lesson, got {row[0]}"
 
     async def test_importance_boost(self) -> None:
-        from qwen_viet.learning.journal import add_or_evolve_lesson, update_importance_post_outcome
+        from lodestar.learning.journal import add_or_evolve_lesson, update_importance_post_outcome
 
         lesson = CustomerLesson(
             lesson_id="L-imp-001",
@@ -105,7 +105,7 @@ class TestJournal:
         assert row["importance"] == 5.5
 
     async def test_importance_decay(self) -> None:
-        from qwen_viet.learning.journal import add_or_evolve_lesson, update_importance_post_outcome
+        from lodestar.learning.journal import add_or_evolve_lesson, update_importance_post_outcome
 
         lesson = CustomerLesson(
             lesson_id="L-dec-001",
@@ -128,7 +128,7 @@ class TestReflection:
     """Test process/outcome separation and quality gating."""
 
     async def test_earned_reward_quadrant(self) -> None:
-        from qwen_viet.learning.reflection import run_reflection
+        from lodestar.learning.reflection import run_reflection
 
         reflection = await run_reflection(
             customer_id="C001",
@@ -139,7 +139,7 @@ class TestReflection:
         assert reflection.quadrant == "earned_reward"
 
     async def test_dumb_luck_quadrant(self) -> None:
-        from qwen_viet.learning.reflection import run_reflection
+        from lodestar.learning.reflection import run_reflection
 
         reflection = await run_reflection(
             customer_id="C001",
@@ -150,7 +150,7 @@ class TestReflection:
         assert reflection.quadrant == "dumb_luck"
 
     async def test_quality_gate_passes(self) -> None:
-        from qwen_viet.learning.reflection import extract_and_store_lesson, run_reflection
+        from lodestar.learning.reflection import extract_and_store_lesson, run_reflection
 
         reflection = await run_reflection("C001", "INT-003", "A", "good")
         lesson = await extract_and_store_lesson(
@@ -164,7 +164,7 @@ class TestReflection:
         assert lesson.lesson_id.startswith("L-")
 
     async def test_quality_gate_blocks_low_confidence(self) -> None:
-        from qwen_viet.learning.reflection import extract_and_store_lesson, run_reflection
+        from lodestar.learning.reflection import extract_and_store_lesson, run_reflection
 
         reflection = await run_reflection("C001", "INT-004", "A", "good")
         lesson = await extract_and_store_lesson(
@@ -177,7 +177,7 @@ class TestReflection:
         assert lesson is None
 
     async def test_quality_gate_blocks_bad_process(self) -> None:
-        from qwen_viet.learning.reflection import extract_and_store_lesson, run_reflection
+        from lodestar.learning.reflection import extract_and_store_lesson, run_reflection
 
         reflection = await run_reflection("C001", "INT-005", "D", "good")
         lesson = await extract_and_store_lesson(
@@ -194,7 +194,7 @@ class TestCohort:
     """Test federated cohort insight aggregation."""
 
     async def test_aggregate_below_threshold(self) -> None:
-        from qwen_viet.learning.cohort import aggregate_to_cohort
+        from lodestar.learning.cohort import aggregate_to_cohort
 
         result = await aggregate_to_cohort(
             lesson_conditions="Holiday spending",
@@ -207,7 +207,7 @@ class TestCohort:
         assert result is None
 
     async def test_aggregate_reaches_threshold(self) -> None:
-        from qwen_viet.learning.cohort import aggregate_to_cohort
+        from lodestar.learning.cohort import aggregate_to_cohort
 
         for i in range(5):
             result = await aggregate_to_cohort(
@@ -224,7 +224,7 @@ class TestCohort:
         assert result.cohort_key == "hcmc_mid_income"
 
     async def test_get_cohort_insights(self) -> None:
-        from qwen_viet.learning.cohort import aggregate_to_cohort, get_cohort_insights
+        from lodestar.learning.cohort import aggregate_to_cohort, get_cohort_insights
 
         for i in range(6):
             await aggregate_to_cohort(
@@ -241,7 +241,7 @@ class TestCohort:
         assert insights[0].pattern_type == "seasonal_transport"
 
     async def test_cohort_strips_customer_id(self) -> None:
-        from qwen_viet.learning.cohort import aggregate_to_cohort
+        from lodestar.learning.cohort import aggregate_to_cohort
 
         for i in range(5):
             await aggregate_to_cohort(

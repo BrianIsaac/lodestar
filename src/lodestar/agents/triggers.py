@@ -10,7 +10,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from qwen_viet.models import Transaction
+from lodestar.models import Transaction
 
 
 class TriggerType(StrEnum):

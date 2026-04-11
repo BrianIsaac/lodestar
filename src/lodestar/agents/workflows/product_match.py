@@ -4,7 +4,7 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from qwen_viet.models import ProductInfo
+from lodestar.models import ProductInfo
 
 
 class ProductMatchState(TypedDict):
@@ -19,7 +19,7 @@ class ProductMatchState(TypedDict):
 
 async def search(state: ProductMatchState) -> dict:
     """Search products via hybrid RAG."""
-    from qwen_viet.rag.retriever import search_products
+    from lodestar.rag.retriever import search_products
 
     results = search_products(state["query"], limit=5)
     return {"results": results}
@@ -33,7 +33,7 @@ async def check_eligibility(state: ProductMatchState) -> dict:
     if not customer_id or not results:
         return {"eligibility_checked": []}
 
-    from qwen_viet.tools.products import check_eligibility as _check
+    from lodestar.tools.products import check_eligibility as _check
 
     checked = []
     for product in results:

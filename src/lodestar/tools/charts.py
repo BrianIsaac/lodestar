@@ -1,6 +1,6 @@
 """Deterministic chart spec generators — return JSON for frontend rendering."""
 
-from qwen_viet.models import ChartSpec, GoalProjection, MoMChange, SavingsGoal, SpendingSummary
+from lodestar.models import ChartSpec, GoalProjection, MoMChange, SavingsGoal, SpendingSummary
 
 
 def generate_spending_chart(

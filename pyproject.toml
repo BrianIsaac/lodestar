@@ -82,7 +82,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/qwen_viet"]
+packages = ["src/lodestar"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

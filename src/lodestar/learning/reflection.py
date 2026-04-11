@@ -6,9 +6,9 @@ In production, the LLM would evaluate process quality more nuancedly.
 
 import uuid
 
-from qwen_viet.database import get_db
-from qwen_viet.learning.journal import add_or_evolve_lesson
-from qwen_viet.models import CustomerLesson, CustomerReflection
+from lodestar.database import get_db
+from lodestar.learning.journal import add_or_evolve_lesson
+from lodestar.models import CustomerLesson, CustomerReflection
 
 QUADRANT_MAP = {
     ("good", "good"): "earned_reward",

@@ -4,7 +4,7 @@ import shutil
 
 import pytest
 
-from qwen_viet.config import settings
+from lodestar.config import settings
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -13,7 +13,7 @@ def setup_rag():
     original_path = settings.qdrant_path
     settings.qdrant_path = "data/qdrant_test_wf"
 
-    from qwen_viet.rag.indexer import init_rag
+    from lodestar.rag.indexer import init_rag
     init_rag()
 
     yield
@@ -26,7 +26,7 @@ class TestSpendingWorkflow:
     """Test the spending analysis LangGraph workflow."""
 
     async def test_end_to_end(self) -> None:
-        from qwen_viet.agents.workflows.spending import spending_graph
+        from lodestar.agents.workflows.spending import spending_graph
 
         result = await spending_graph.ainvoke({
             "customer_id": "C001",
@@ -44,7 +44,7 @@ class TestSpendingWorkflow:
         assert "chi tiêu" in result["insight_text"].lower() or "VND" in result["insight_text"]
 
     async def test_returns_anomalies(self) -> None:
-        from qwen_viet.agents.workflows.spending import spending_graph
+        from lodestar.agents.workflows.spending import spending_graph
 
         result = await spending_graph.ainvoke({
             "customer_id": "C001",
@@ -62,7 +62,7 @@ class TestProductMatchWorkflow:
     """Test the product match LangGraph workflow."""
 
     async def test_search_with_eligibility(self) -> None:
-        from qwen_viet.agents.workflows.product_match import product_match_graph
+        from lodestar.agents.workflows.product_match import product_match_graph
 
         result = await product_match_graph.ainvoke({
             "query": "thẻ tín dụng",
@@ -77,7 +77,7 @@ class TestProductMatchWorkflow:
         assert "thông tin sản phẩm" in result["insight_text"].lower()
 
     async def test_search_without_customer(self) -> None:
-        from qwen_viet.agents.workflows.product_match import product_match_graph
+        from lodestar.agents.workflows.product_match import product_match_graph
 
         result = await product_match_graph.ainvoke({
             "query": "bảo hiểm sức khỏe",
@@ -94,7 +94,7 @@ class TestScenarioWorkflow:
     """Test the cross-entity scenario simulation workflow."""
 
     async def test_home_purchase(self) -> None:
-        from qwen_viet.agents.workflows.scenario import scenario_graph
+        from lodestar.agents.workflows.scenario import scenario_graph
 
         result = await scenario_graph.ainvoke({
             "customer_id": "C002",
@@ -117,7 +117,7 @@ class TestScenarioWorkflow:
         assert "kịch bản" in result["insight_text"].lower() or "home_purchase" in result["insight_text"]
 
     async def test_scenario_has_risk_flags(self) -> None:
-        from qwen_viet.agents.workflows.scenario import scenario_graph
+        from lodestar.agents.workflows.scenario import scenario_graph
 
         result = await scenario_graph.ainvoke({
             "customer_id": "C002",

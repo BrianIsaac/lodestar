@@ -4,9 +4,9 @@ from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from qwen_viet.models import ChartSpec, SpendingSummary
-from qwen_viet.tools.charts import generate_spending_chart
-from qwen_viet.tools.spending import (
+from lodestar.models import ChartSpec, SpendingSummary
+from lodestar.tools.charts import generate_spending_chart
+from lodestar.tools.spending import (
     compute_spending_summary,
     detect_anomalies,
 )

@@ -1,6 +1,6 @@
 """Data models for the financial coach PoC."""
 
-from qwen_viet.models.customer import (
+from lodestar.models.customer import (
     AccountBalance,
     CustomerProfile,
     CustomerSegment,
@@ -9,7 +9,7 @@ from qwen_viet.models.customer import (
     NetWorth,
     Transaction,
 )
-from qwen_viet.models.insight import (
+from lodestar.models.insight import (
     ChartSpec,
     ChatMessage,
     ChatResponse,
@@ -18,12 +18,12 @@ from qwen_viet.models.insight import (
     InsightFeed,
     InsightSeverity,
 )
-from qwen_viet.models.learning import (
+from lodestar.models.learning import (
     CohortInsight,
     CustomerLesson,
     CustomerReflection,
 )
-from qwen_viet.models.products import (
+from lodestar.models.products import (
     AffordabilityResult,
     ComparisonTable,
     EligibilityResult,

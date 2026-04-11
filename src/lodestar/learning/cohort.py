@@ -1,7 +1,7 @@
 """Federated cohort insight aggregation — privacy-preserving cross-customer learning."""
 
-from qwen_viet.database import get_db
-from qwen_viet.models import CohortInsight
+from lodestar.database import get_db
+from lodestar.models import CohortInsight
 
 MIN_CUSTOMERS_POC = 5
 

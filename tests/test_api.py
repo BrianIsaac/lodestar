@@ -3,7 +3,7 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from qwen_viet.api import app
+from lodestar.api import app
 
 
 @pytest.fixture
@@ -114,7 +114,7 @@ class TestSSEStream:
 
     async def test_stream_endpoint_exists(self, client: AsyncClient) -> None:
         # SSE endpoint is long-lived; just verify it doesn't 404
-        from qwen_viet.api import app as _app
+        from lodestar.api import app as _app
 
         routes = [r.path for r in _app.routes]
         assert "/stream/{customer_id}" in routes

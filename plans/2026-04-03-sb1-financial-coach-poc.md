@@ -23,7 +23,7 @@ A working demo where:
 ### Verification
 
 - `uv run pytest` passes all tests
-- `uv run uvicorn src.qwen_viet.api:app` starts the backend on port 8000
+- `uv run uvicorn src.lodestar.api:app` starts the backend on port 8000
 - `llama-server --model Qwen3-8B-Q4_K_M.gguf --ctx-size 32768 --port 8080` serves the LLM
 - Frontend on Vercel connects to the API and renders the insight feed
 - A full demo scenario (generate insights → view feed → drill down → simulate scenario → see learning update) completes end-to-end
@@ -41,8 +41,8 @@ A working demo where:
 ## Project Structure
 
 ```
-qwen-viet/
-├── src/qwen_viet/
+lodestar/
+├── src/lodestar/
 │   ├── __init__.py
 │   ├── api.py                      # FastAPI app, all endpoints
 │   ├── config.py                   # Settings via pydantic-settings
@@ -135,7 +135,7 @@ Project structure, Pydantic models, database schema, synthetic data generation. 
 #### 1. Project structure
 Create the directory tree above. All `__init__.py` files.
 
-#### 2. Configuration (`src/qwen_viet/config.py`)
+#### 2. Configuration (`src/lodestar/config.py`)
 Pydantic-settings based config:
 ```python
 from pydantic_settings import BaseSettings
@@ -153,7 +153,7 @@ class Settings(BaseSettings):
         env_prefix = "COACH_"
 ```
 
-#### 3. Pydantic models (`src/qwen_viet/models/`)
+#### 3. Pydantic models (`src/lodestar/models/`)
 All typed models from the docs:
 
 **`customer.py`**: `CustomerProfile`, `AccountBalance`, `Transaction`, `IncomePattern`, `DebtSummary`, `NetWorth`
@@ -164,10 +164,10 @@ All typed models from the docs:
 
 **`products.py`**: `ProductInfo`, `ProductFilters`, `EligibilityResult`, `ComparisonTable`, `ScenarioRequest`, `ScenarioResult`
 
-#### 4. Database schema (`src/qwen_viet/database.py`)
+#### 4. Database schema (`src/lodestar/database.py`)
 SQLite via aiosqlite. Tables: `customers`, `transactions`, `accounts`, `goals`, `lessons`, `reflections`, `cohort_insights`, `insight_cards`, `interactions`.
 
-#### 5. Synthetic data (`src/qwen_viet/data/`)
+#### 5. Synthetic data (`src/lodestar/data/`)
 - `synthetic.py`: Vietnamese merchant taxonomy, NAPAS descriptions, life event planting (from doc 14 code)
 - `products_catalogue.json`: ~50 Shinhan products across 4 entities with metadata
 - `seed_data.py`: Generate 5-10 customer profiles with 12 months of transactions, cross-entity data, and planted life events
@@ -176,8 +176,8 @@ SQLite via aiosqlite. Tables: `customers`, `transactions`, `accounts`, `goals`, 
 
 #### Automated Verification:
 - [x] `uv sync` installs all dependencies without conflict
-- [x] `uv run python -c "from qwen_viet.models import *"` imports cleanly
-- [x] `uv run python -m qwen_viet.data.seed_data` generates synthetic data and seeds the SQLite DB (5 customers, 2118 transactions)
+- [x] `uv run python -c "from lodestar.models import *"` imports cleanly
+- [x] `uv run python -m lodestar.data.seed_data` generates synthetic data and seeds the SQLite DB (5 customers, 2118 transactions)
 - [x] `uv run pytest tests/test_tools.py` — 16/16 model tests pass
 - [x] `uv run ruff check src/` passes linting
 
@@ -197,7 +197,7 @@ All MCP tools as pure Python functions. No LLM involvement — these are the fun
 
 ### Changes Required:
 
-#### 1. Spending tools (`src/qwen_viet/tools/spending.py`)
+#### 1. Spending tools (`src/lodestar/tools/spending.py`)
 ```python
 async def get_transactions(customer_id: str, start_date: str, end_date: str, category: str | None = None) -> list[Transaction]
 async def categorise_transactions(transactions: list[Transaction]) -> list[Transaction]  # rule-based + underthesea
@@ -208,7 +208,7 @@ async def detect_recurring_charges(customer_id: str) -> list[RecurringCharge]
 async def compute_month_over_month_change(customer_id: str, category: str | None = None) -> list[MoMChange]
 ```
 
-#### 2. Goal tools (`src/qwen_viet/tools/goals.py`)
+#### 2. Goal tools (`src/lodestar/tools/goals.py`)
 ```python
 async def create_goal(customer_id: str, name: str, target_amount: float, target_date: str) -> SavingsGoal
 async def project_goal_completion(goal_id: str) -> GoalProjection
@@ -216,7 +216,7 @@ async def compute_savings_rate(customer_id: str, months: int = 6) -> SavingsRate
 async def calculate_loan_affordability(customer_id: str, loan_amount: float, term: int, rate: float) -> AffordabilityResult
 ```
 
-#### 3. Chart tools (`src/qwen_viet/tools/charts.py`)
+#### 3. Chart tools (`src/lodestar/tools/charts.py`)
 ```python
 def generate_spending_chart(summary: SpendingSummary, chart_type: str = "donut") -> ChartSpec
 def generate_goal_progress_chart(goal: SavingsGoal, projection: GoalProjection) -> ChartSpec
@@ -225,13 +225,13 @@ def generate_cashflow_waterfall(customer_id: str, period: str) -> ChartSpec
 ```
 Charts return `ChartSpec` JSON — `{chart_type, title, data, axes}` — rendered by the frontend.
 
-#### 4. Simulation tools (`src/qwen_viet/tools/simulation.py`)
+#### 4. Simulation tools (`src/lodestar/tools/simulation.py`)
 ```python
 async def simulate_scenario(customer_id: str, scenario_type: str, parameters: dict) -> ScenarioResult
 ```
 Cross-entity simulation using `numpy-financial` for mortgage/loan calculations. Returns per-entity impact breakdown.
 
-#### 5. Vietnamese NLP (`src/qwen_viet/nlp/vietnamese.py`)
+#### 5. Vietnamese NLP (`src/lodestar/nlp/vietnamese.py`)
 ```python
 def normalise_transaction(desc: str) -> str  # underthesea text_normalize + word_tokenize
 def extract_financial_entities(text: str) -> dict  # NER + regex for amounts/dates
@@ -262,20 +262,20 @@ Qdrant embedded mode + bge-m3 via FlagEmbedding. Hybrid dense + sparse search wi
 
 ### Changes Required:
 
-#### 1. Embeddings wrapper (`src/qwen_viet/rag/embeddings.py`)
+#### 1. Embeddings wrapper (`src/lodestar/rag/embeddings.py`)
 Thin wrapper around `BGEM3FlagModel` that returns dense and sparse vectors.
 
-#### 2. Indexer (`src/qwen_viet/rag/indexer.py`)
+#### 2. Indexer (`src/lodestar/rag/indexer.py`)
 - Create Qdrant collection with dense + sparse vector config
 - Create payload indexes for `product_type`, `min_income`, `interest_rate`
 - Ingest `products_catalogue.json` with embeddings
 
-#### 3. Retriever (`src/qwen_viet/rag/retriever.py`)
+#### 3. Retriever (`src/lodestar/rag/retriever.py`)
 - Hybrid query with `Prefetch` (dense + sparse), `FusionQuery(fusion=Fusion.RRF)`
 - Payload pre-filtering before vector search
 - Returns ranked `list[ProductInfo]`
 
-#### 4. Product tools (`src/qwen_viet/tools/products.py`)
+#### 4. Product tools (`src/lodestar/tools/products.py`)
 ```python
 async def search_products(query: str, filters: ProductFilters | None = None) -> list[ProductInfo]
 async def compare_products(product_ids: list[str]) -> ComparisonTable
@@ -308,16 +308,16 @@ Four specialist workflows compiled as LangGraph subgraphs, each wrappable as a `
 
 ### Changes Required:
 
-#### 1. Spending analysis workflow (`src/qwen_viet/agents/workflows/spending.py`)
+#### 1. Spending analysis workflow (`src/lodestar/agents/workflows/spending.py`)
 LangGraph `StateGraph` with nodes: fetch_transactions → categorise → compute_summary → generate_chart → compose_insight. Fan-out where possible.
 
-#### 2. Goal tracking workflow (`src/qwen_viet/agents/workflows/goals.py`)
+#### 2. Goal tracking workflow (`src/lodestar/agents/workflows/goals.py`)
 Nodes: compute_income_pattern → compute_savings_rate → project_completion → generate_chart → compose_insight.
 
-#### 3. Product match workflow (`src/qwen_viet/agents/workflows/product_match.py`)
+#### 3. Product match workflow (`src/lodestar/agents/workflows/product_match.py`)
 Nodes: extract_query_intent → search_products → check_eligibility → compose_response.
 
-#### 4. Scenario simulation workflow (`src/qwen_viet/agents/workflows/scenario.py`)
+#### 4. Scenario simulation workflow (`src/lodestar/agents/workflows/scenario.py`)
 Nodes: fetch_cross_entity_data (fan-out to all 4 entities) → merge → simulate_scenario → generate_comparison_chart → compose_insight. Uses `AgentState` with `Annotated[list, operator.add]` reducers for safe parallel writes.
 
 Each workflow is compiled and wrapped:
@@ -355,7 +355,7 @@ The core: Qwen-Agent reactive orchestrator with workflow-as-tool pattern, plus t
 
 ### Changes Required:
 
-#### 1. Trigger rules (`src/qwen_viet/agents/triggers.py`)
+#### 1. Trigger rules (`src/lodestar/agents/triggers.py`)
 Deterministic Python rules — no LLM. Each trigger returns a `TriggerEvent` with type, severity, customer_id, context.
 
 ```python
@@ -367,7 +367,7 @@ def check_goal_milestone(customer_id: str) -> TriggerEvent | None
 def check_life_event_pattern(transactions: list[Transaction], customer_id: str) -> TriggerEvent | None
 ```
 
-#### 2. Background agent (`src/qwen_viet/agents/background.py`)
+#### 2. Background agent (`src/lodestar/agents/background.py`)
 Asyncio polling loop:
 - Polls transactions every N seconds (configurable, default 30s for demo)
 - Runs all trigger rules
@@ -376,10 +376,10 @@ Asyncio polling loop:
 - Compliance filter classifies output
 - Ranks, deduplicates, stores to `insight_cards` table
 
-#### 3. Compliance filter (`src/qwen_viet/agents/compliance.py`)
+#### 3. Compliance filter (`src/lodestar/agents/compliance.py`)
 Lightweight LLM classifier: given a response, classify as `information`, `guidance`, or `advice`. Block `advice`. Add disclaimer to `guidance`. Log all classifications.
 
-#### 4. Reactive orchestrator (`src/qwen_viet/agents/orchestrator.py`)
+#### 4. Reactive orchestrator (`src/lodestar/agents/orchestrator.py`)
 Qwen-Agent `Assistant` with registered workflow tools + atomic MCP tools as fallback:
 ```python
 from qwen_agent.agents import Assistant
@@ -418,18 +418,18 @@ Per-customer lesson journal with quality gating, semantic retrieval, importance 
 
 ### Changes Required:
 
-#### 1. Journal (`src/qwen_viet/learning/journal.py`)
+#### 1. Journal (`src/lodestar/learning/journal.py`)
 Adapted from TojiMoola's `TradingJournal`:
 - `add_or_evolve_lesson()`: embed, check cosine similarity >0.85 against existing → merge or store new
 - `get_relevant_lessons()`: three-component scoring (recency + importance + relevance), retrieve top-k, compress via LLM
 - `update_importance_post_outcome()`: +0.5 if helped, -0.3 if not
 
-#### 2. Reflection (`src/qwen_viet/learning/reflection.py`)
+#### 2. Reflection (`src/lodestar/learning/reflection.py`)
 - `run_reflection()`: LLM evaluates process quality (Van Tharp 2x2 → process_grade + outcome_quality)
 - `extract_lesson()`: structured lesson with conditions, error_type, confidence, importance
 - Quality gate: only persist if process_grade A/B AND confidence >= 0.70
 
-#### 3. Cohort store (`src/qwen_viet/learning/cohort.py`)
+#### 3. Cohort store (`src/lodestar/learning/cohort.py`)
 - `aggregate_to_cohort()`: strip PII, retain pattern type + category + demographic band
 - `get_cohort_insights()`: retrieve anonymised insights for new customers by demographic key
 - k-anonymity: only activate when supporting_count >= 50 (relaxed to 5 for PoC demo)
@@ -461,7 +461,7 @@ Wire everything together into the API. All endpoints from doc 03.
 
 ### Changes Required:
 
-#### 1. API app (`src/qwen_viet/api.py`)
+#### 1. API app (`src/lodestar/api.py`)
 FastAPI app with endpoints:
 - `GET /feed/{customer_id}` — ranked insight cards
 - `POST /dismiss/{insight_id}` — dismiss + learning loop feedback
@@ -484,7 +484,7 @@ Enable CORS for Vercel frontend domain.
 #### Automated Verification:
 - [x] `uv run pytest tests/test_api.py` — 7/8 pass, 1 skipped (7 endpoints tested: health, feed, feed-unknown, goals CRUD, simulation, products, SSE route)
 - [x] SSE stream endpoint route exists and is configured
-- [x] `uvicorn qwen_viet.api:app` starts successfully — health returns 200 with 5 customers, feed returns insight cards
+- [x] `uvicorn lodestar.api:app` starts successfully — health returns 200 with 5 customers, feed returns insight cards
 - [x] `GET /feed/C001` returns JSON with 2 insight cards
 
 #### Manual Verification:

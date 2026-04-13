@@ -136,7 +136,7 @@ def _get_client() -> AsyncOpenAI:
     """
     return AsyncOpenAI(
         base_url=settings.llm_base_url,
-        api_key="not-needed",
+        api_key=settings.llm_api_key,
     )
 
 

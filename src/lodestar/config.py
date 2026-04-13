@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     llm_base_url: str = "http://localhost:11434/v1"
     llm_model: str = "qwen3:14b"
+    llm_api_key: str = "not-needed"
     db_path: str = "data/coach.db"
     qdrant_path: str = "data/qdrant"
     embedding_model: str = "BAAI/bge-m3"

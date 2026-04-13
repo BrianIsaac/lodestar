@@ -1,0 +1,26 @@
+services:
+  backend:
+    build:
+      context: .
+      target: backend
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - app-data:/app/data
+      - hf-cache:/root/.cache/huggingface
+
+  frontend:
+    build:
+      context: .
+      target: frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  app-data:
+  hf-cache:

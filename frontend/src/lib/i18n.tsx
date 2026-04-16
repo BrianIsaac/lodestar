@@ -55,6 +55,11 @@ const DICT = {
   lang_en: { vi: "Tiếng Anh", en: "English", ko: "영어" },
   lang_ko: { vi: "Tiếng Hàn", en: "Korean", ko: "한국어" },
 
+  // Layout mode toggle
+  layout_toggle_aria: { vi: "Đổi bố cục", en: "Change layout", ko: "레이아웃 변경" },
+  layout_app: { vi: "Chế độ ứng dụng", en: "App view", ko: "앱 보기" },
+  layout_web: { vi: "Chế độ web", en: "Web view", ko: "웹 보기" },
+
   // Insight feed + cards
   compliance_banner: {
     vi: "Lodestar cung cấp thông tin tham khảo, không phải tư vấn tài chính.",

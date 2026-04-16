@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/lib/i18n";
+import { LayoutModeProvider } from "@/lib/layout-mode";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -34,8 +35,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <LanguageProvider>
-            {children}
-            <Toaster richColors position="top-center" />
+            <LayoutModeProvider>
+              {children}
+              <Toaster richColors position="top-center" />
+            </LayoutModeProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

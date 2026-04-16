@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { AppShell } from "@/components/app-shell";
-import { BottomNav, type TabValue } from "@/components/bottom-nav";
+import { BottomNav, TopNavTabs, type TabValue } from "@/components/bottom-nav";
 import { CustomerHero } from "@/components/customer-hero";
 import { InsightFeed } from "@/components/insight-feed";
 import { GoalsView } from "@/components/goals-view";
@@ -20,6 +20,7 @@ export default function Home() {
 
   return (
     <AppShell customerInitials={CUSTOMER_INITIALS}>
+      <TopNavTabs value={tab} onChange={setTab} />
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabValue)}>
         <TabsContent value="feed" className="flex flex-col gap-4">
           <CustomerHero name={CUSTOMER_NAME} monthlyIncome={12097856} monthlySpending={24845043} />

@@ -16,6 +16,7 @@ import { InsightCard } from "@/components/insight-card";
 import { cn } from "@/lib/utils";
 import { dismissInsight, fetchFeed } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useLayoutMode } from "@/lib/layout-mode";
 import { useInsightStream } from "@/lib/use-sse";
 import type { InsightCard as InsightCardType } from "@/lib/types";
 
@@ -30,7 +31,12 @@ type FeedState =
 export function InsightFeed({ customerId }: Props) {
   const [state, setState] = useState<FeedState>({ status: "loading" });
   const { t } = useT();
+  const { mode } = useLayoutMode();
   const stream = useInsightStream(customerId);
+  const cardGridClass =
+    mode === "web"
+      ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      : "flex flex-col gap-3";
 
   const loading = state.status === "loading";
 
@@ -79,7 +85,7 @@ export function InsightFeed({ customerId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-3">
+      <div className={cardGridClass}>
         {Array.from({ length: 3 }).map((_, i) => (
           <Skeleton key={i} className="h-32 w-full rounded-xl" />
         ))}
@@ -110,9 +116,11 @@ export function InsightFeed({ customerId }: Props) {
         <Sparkles />
         <AlertDescription>{t("compliance_banner")}</AlertDescription>
       </Alert>
-      {cards.map((card) => (
-        <InsightCard key={card.insight_id} card={card} onDismiss={handleDismiss} />
-      ))}
+      <div className={cardGridClass}>
+        {cards.map((card) => (
+          <InsightCard key={card.insight_id} card={card} onDismiss={handleDismiss} />
+        ))}
+      </div>
     </div>
   );
 }

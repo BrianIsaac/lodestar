@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 import { Compass, Newspaper, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useT, type StringKey } from "@/lib/i18n";
+import { useLayoutMode } from "@/lib/layout-mode";
 
 export type TabValue = "feed" | "plan" | "products";
 
@@ -24,8 +25,13 @@ const ITEMS: Item[] = [
   { value: "products", icon: Wallet, labelKey: "tab_products" },
 ];
 
+/** Fixed bottom tab bar for app (phone) layout. Hidden in web layout —
+ *  `TopNavTabs` renders the same items inline at the top of main content. */
 export function BottomNav({ value, onChange }: Props) {
   const { t } = useT();
+  const { mode } = useLayoutMode();
+
+  if (mode !== "app") return null;
 
   return (
     <nav
@@ -53,6 +59,44 @@ export function BottomNav({ value, onChange }: Props) {
           );
         })}
       </div>
+    </nav>
+  );
+}
+
+/** Inline tab bar shown at the top of main content in web layout.
+ *  Mirrors BottomNav items so behaviour stays identical across modes. */
+export function TopNavTabs({ value, onChange }: Props) {
+  const { t } = useT();
+  const { mode } = useLayoutMode();
+
+  if (mode !== "web") return null;
+
+  return (
+    <nav
+      aria-label={t("nav_aria")}
+      className="-mx-4 mb-4 flex items-stretch gap-1 border-b border-border/60 px-4"
+    >
+      {ITEMS.map((item) => {
+        const active = item.value === value;
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.value}
+            type="button"
+            onClick={() => onChange(item.value)}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
+              active
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Icon className="size-4" />
+            {t(item.labelKey)}
+          </button>
+        );
+      })}
     </nav>
   );
 }

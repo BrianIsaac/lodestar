@@ -17,6 +17,7 @@ import {
 import { searchProducts } from "@/lib/api";
 import { formatVNDCompact } from "@/lib/format";
 import { useT, type StringKey } from "@/lib/i18n";
+import { useLayoutMode } from "@/lib/layout-mode";
 import type { ProductInfo } from "@/lib/types";
 
 /** Suggestion keys — resolved per language via useT(). bge-m3 is multilingual
@@ -40,6 +41,11 @@ export function ProductSearch() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const { lang, t } = useT();
+  const { mode } = useLayoutMode();
+  const resultsGridClass =
+    mode === "web"
+      ? "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
+      : "flex flex-col gap-2";
 
   async function run(text: string) {
     const q = text.trim();
@@ -111,7 +117,7 @@ export function ProductSearch() {
         </Empty>
       )}
 
-      <div className="flex flex-col gap-2">
+      <div className={resultsGridClass}>
         {results.map((p) => {
           // Catalogue carries all three locales; pick the right field per
           // UI language with a Vi fallback if a product hasn't been

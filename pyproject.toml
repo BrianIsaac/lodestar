@@ -21,8 +21,7 @@ dependencies = [
     "pydantic>=2.10",
     "pydantic-settings>=2.7",
 
-    # Vector DB + Embeddings
-    "qdrant-client>=1.13",
+    # Embeddings (used by the learning journal for semantic lesson dedup)
     "sentence-transformers>=3.4",   # bge-m3 embedding (FlagEmbedding has transformers version conflicts)
 
     # Database

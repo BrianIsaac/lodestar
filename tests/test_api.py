@@ -79,16 +79,11 @@ class TestProducts:
     """Test product search endpoint."""
 
     async def test_search(self, client: AsyncClient) -> None:
-        try:
-            resp = await client.get("/products/search", params={"query": "thẻ tín dụng"})
-            assert resp.status_code == 200
-            products = resp.json()
-            assert len(products) > 0
-            assert any(p["product_type"] == "credit_card" for p in products)
-        except Exception as e:
-            if "OutOfMemoryError" in str(e) or "CUDA" in str(e):
-                pytest.skip("GPU OOM — embedding model cannot load alongside other processes")
-            raise
+        resp = await client.get("/products/search", params={"query": "thẻ tín dụng"})
+        assert resp.status_code == 200
+        products = resp.json()
+        assert len(products) > 0
+        assert any(p["product_type"] == "credit_card" for p in products)
 
 
 class TestDismiss:

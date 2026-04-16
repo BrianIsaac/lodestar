@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     llm_model: str = "qwen3:14b"
     llm_api_key: str = "not-needed"
     db_path: str = "data/coach.db"
-    qdrant_path: str = "data/qdrant"
     embedding_model: str = "BAAI/bge-m3"
     api_host: str = "0.0.0.0"
     api_port: int = 8000
@@ -27,7 +26,6 @@ class Settings(BaseSettings):
     def ensure_dirs(self) -> None:
         """Create data directories if they do not exist."""
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        Path(self.qdrant_path).mkdir(parents=True, exist_ok=True)
 
 
 settings = Settings()

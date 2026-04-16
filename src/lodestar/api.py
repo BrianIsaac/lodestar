@@ -68,13 +68,12 @@ class DismissRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup() -> None:
-    """Initialise database, RAG index, and seed data on first run."""
+    """Initialise database and seed data on first run."""
     settings.ensure_dirs()
     await init_db()
 
-    from lodestar.rag.indexer import init_rag
-    count = init_rag()
-    logger.info("RAG initialised with %d products", count)
+    from lodestar.tools.products import _load_catalogue
+    logger.info("Product catalogue loaded: %d products", len(_load_catalogue()))
 
     db = await get_db()
     cursor = await db.execute("SELECT COUNT(*) FROM customers")
@@ -288,11 +287,11 @@ async def create_goal(body: CreateGoalRequest) -> SavingsGoal:
 
 @app.get("/products/search")
 async def search_products(query: str, customer_id: str | None = None) -> list[ProductInfo]:
-    """RAG-powered product search with optional eligibility filtering.
+    """Search the static Shinhan product catalogue.
 
     Args:
         query: Search query.
-        customer_id: Optional customer for eligibility check.
+        customer_id: Optional customer (reserved for future eligibility filtering).
 
     Returns:
         Ranked product list.

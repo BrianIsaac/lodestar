@@ -18,10 +18,10 @@ class ProductMatchState(TypedDict):
 
 
 async def search(state: ProductMatchState) -> dict:
-    """Search products via hybrid RAG."""
-    from lodestar.rag.retriever import search_products
+    """Search the static product catalogue."""
+    from lodestar.tools.products import _search_sync
 
-    results = search_products(state["query"], limit=5)
+    results = _search_sync(state["query"], limit=5)
     return {"results": results}
 
 

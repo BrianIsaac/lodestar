@@ -1,26 +1,5 @@
 """Tests for LangGraph workflow subgraphs."""
 
-import shutil
-
-import pytest
-
-from lodestar.config import settings
-
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_rag():
-    """Initialise RAG for product match workflow tests."""
-    original_path = settings.qdrant_path
-    settings.qdrant_path = "data/qdrant_test_wf"
-
-    from lodestar.rag.indexer import init_rag
-    init_rag()
-
-    yield
-
-    settings.qdrant_path = original_path
-    shutil.rmtree("data/qdrant_test_wf", ignore_errors=True)
-
 
 class TestSpendingWorkflow:
     """Test the spending analysis LangGraph workflow."""

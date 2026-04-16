@@ -10,15 +10,17 @@ export function LayoutToggle() {
   const { t } = useT();
   const isApp = mode === "app";
 
+  // Icon shows the TARGET mode — click to switch to that view. Mirrors how
+  // the theme toggle surfaces the "opposite" icon in its trigger button.
   return (
     <Button
       variant="ghost"
       size="icon-sm"
       aria-label={t("layout_toggle_aria")}
       onClick={toggle}
-      title={isApp ? t("layout_app") : t("layout_web")}
+      title={isApp ? t("layout_web") : t("layout_app")}
     >
-      {isApp ? <Smartphone /> : <Monitor />}
+      {isApp ? <Monitor /> : <Smartphone />}
     </Button>
   );
 }

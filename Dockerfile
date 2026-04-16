@@ -2,7 +2,7 @@
 FROM python:3.11-slim AS backend
 
 WORKDIR /app
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 RUN pip install uv && uv sync --frozen --no-dev
 COPY src/ src/
 

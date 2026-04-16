@@ -54,8 +54,24 @@ def ingest_products(client: QdrantClient) -> int:
     with open(CATALOGUE_PATH) as f:
         products = json.load(f)
 
+    # Embed all three locales in a single document so bge-m3 anchors each
+    # product across Vi/En/Ko vocabulary. Previously Vietnamese-only, which
+    # made English or Korean queries rely on bge-m3's cross-lingual
+    # generalisation alone and degraded precision.
     texts = [
-        f"{p['name_vi']} — {p.get('description_vi', '')} — {p['product_type']}"
+        " — ".join(
+            part
+            for part in (
+                p.get("name_vi", ""),
+                p.get("name_en", ""),
+                p.get("name_ko", ""),
+                p.get("description_vi", ""),
+                p.get("description_en", ""),
+                p.get("description_ko", ""),
+                p.get("product_type", ""),
+            )
+            if part
+        )
         for p in products
     ]
 
@@ -88,15 +104,17 @@ def ingest_products(client: QdrantClient) -> int:
     return len(points)
 
 
-PAYLOAD_SCHEMA_VERSION = 2  # bump whenever the stored payload shape changes
+PAYLOAD_SCHEMA_VERSION = 3  # bump whenever the stored payload shape OR embedding recipe changes
+_SCHEMA_MARKER_KEY = "_schema_version"
 
 
 def init_rag() -> int:
     """Initialise the RAG pipeline: create collection and ingest products.
 
-    Re-ingests when the existing collection lacks the current payload
-    schema (missing name_ko / description_ko). This keeps Qdrant in sync
-    with the Vi/En/Ko catalogue without manual cache wipes.
+    Re-ingests whenever the stored schema version is missing or older than
+    PAYLOAD_SCHEMA_VERSION. Bumping the constant above forces a wipe so
+    callers don't have to remember to clear the Qdrant cache when the
+    embedding recipe changes.
 
     Returns:
         Number of products indexed.
@@ -106,24 +124,42 @@ def init_rag() -> int:
 
     info = client.get_collection(COLLECTION_NAME)
     points_count = info.points_count or 0
-    if points_count > 0 and _payload_has_korean(client):
+    if points_count > 0 and _stored_schema_version(client) >= PAYLOAD_SCHEMA_VERSION:
         return points_count
 
-    # Stale schema or empty — wipe and re-ingest.
     if points_count > 0:
         client.delete_collection(COLLECTION_NAME)
         create_collection(client)
-    return ingest_products(client)
+    count = ingest_products(client)
+    _write_schema_marker(client)
+    return count
 
 
-def _payload_has_korean(client: QdrantClient) -> bool:
-    """Return True if the first stored point already carries a name_ko
-    field. Cheap probe used to decide whether to re-ingest on startup."""
+def _stored_schema_version(client: QdrantClient) -> int:
+    """Return the schema version recorded on the first stored point, or 0
+    when the marker is missing (pre-versioned ingests)."""
     try:
         points, _ = client.scroll(collection_name=COLLECTION_NAME, limit=1, with_payload=True)
     except Exception:
-        return False
+        return 0
     if not points:
-        return False
+        return 0
     payload = points[0].payload or {}
-    return "name_ko" in payload
+    return int(payload.get(_SCHEMA_MARKER_KEY, 0))
+
+
+def _write_schema_marker(client: QdrantClient) -> None:
+    """Stamp every stored point with the current schema version so the next
+    boot can tell whether to re-ingest."""
+    try:
+        points, _ = client.scroll(collection_name=COLLECTION_NAME, limit=1000, with_payload=False)
+    except Exception:
+        return
+    ids = [p.id for p in points]
+    if not ids:
+        return
+    client.set_payload(
+        collection_name=COLLECTION_NAME,
+        payload={_SCHEMA_MARKER_KEY: PAYLOAD_SCHEMA_VERSION},
+        points=ids,
+    )

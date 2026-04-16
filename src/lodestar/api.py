@@ -714,20 +714,26 @@ async def reset_demo(customer_id: str) -> dict:
             (customer_id,),
         )
         tx_deleted = cursor.rowcount
+        cursor = await db.execute(
+            "DELETE FROM goals WHERE customer_id = ?", (customer_id,)
+        )
+        goals_deleted = cursor.rowcount
         await db.commit()
     finally:
         await db.close()
 
     logger.info(
-        "Demo reset for %s — %d cards, %d demo transactions dropped",
+        "Demo reset for %s — %d cards, %d demo tx, %d goals dropped",
         customer_id,
         cards_deleted,
         tx_deleted,
+        goals_deleted,
     )
     return {
         "customer_id": customer_id,
         "cards_deleted": cards_deleted,
         "demo_transactions_deleted": tx_deleted,
+        "goals_deleted": goals_deleted,
     }
 
 

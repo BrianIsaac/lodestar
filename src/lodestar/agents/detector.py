@@ -103,6 +103,16 @@ Quick-prompt actions:
 - "plan" — jumps to the Plan tab with a goal form pre-filled. Use params: {"name": "<goal name>", "target_amount": <int VND>, "months": <int>}.
 - "products" — jumps to Products tab with a search pre-filled. Use params: {"query": "<search phrase>"}.
 
+Shinhan product catalogue you can route customers to via the "products" chip. Pick the `query` so it will retrieve the intended row via dense search:
+- Credit cards: "Shinhan Cashback", "Shinhan Platinum", "Shinhan S-Shopping" → use query "credit card" or "cashback credit card"
+- Savings: "SOL Flexible Savings", "6-Month Fixed Deposit", "12-Month Fixed Deposit" → use query "savings" or "fixed deposit"
+- Loans: "Shinhan Home Loan", "Shinhan Auto Loan", "Personal Unsecured Loan" → use query "home loan", "auto loan", or "personal loan"
+- Life insurance: "Shinhan Life Protect", "Shinhan Health+", "Shinhan Edu Care", "Shinhan Golden Years" → use query "life insurance", "health insurance", "education insurance", or "retirement"
+- Consumer finance: "Shinhan Finance Consumer Loan", "Phone Instalment Loan", "Shinhan Buy Now Pay Later" → use query "consumer loan", "instalment", or "buy now pay later"
+- Investment: "Shinhan Bond Fund", "Shinhan Equity Fund", "Shinhan VN30 ETF", "Shinhan Securities Account" → use query "investment", "bond fund", "equity fund", or "ETF"
+
+Prefer queries that match a product category the customer's situation calls for — a new-baby signal → "education insurance" or "life insurance"; a big shopping spike → "cashback credit card"; a salary credit → "savings" or "fixed deposit"; a home-purchase signal → "home loan".
+
 Always produce three chips per language. The first one should be the strongest actionable suggestion (often a "plan" or "products" cross-link if relevant); the others are chat prompts the customer might tap.
 
 Now reason carefully and call tools as needed before producing your JSON."""

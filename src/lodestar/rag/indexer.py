@@ -73,8 +73,10 @@ def ingest_products(client: QdrantClient) -> int:
                     "product_type": product["product_type"],
                     "name_vi": product["name_vi"],
                     "name_en": product.get("name_en", ""),
+                    "name_ko": product.get("name_ko", ""),
                     "description_vi": product.get("description_vi", ""),
                     "description_en": product.get("description_en", ""),
+                    "description_ko": product.get("description_ko", ""),
                     "interest_rate": product.get("interest_rate"),
                     "min_income": product.get("min_income", 0),
                     "eligibility_criteria": product.get("eligibility_criteria", {}),
@@ -86,8 +88,15 @@ def ingest_products(client: QdrantClient) -> int:
     return len(points)
 
 
+PAYLOAD_SCHEMA_VERSION = 2  # bump whenever the stored payload shape changes
+
+
 def init_rag() -> int:
     """Initialise the RAG pipeline: create collection and ingest products.
+
+    Re-ingests when the existing collection lacks the current payload
+    schema (missing name_ko / description_ko). This keeps Qdrant in sync
+    with the Vi/En/Ko catalogue without manual cache wipes.
 
     Returns:
         Number of products indexed.
@@ -96,7 +105,25 @@ def init_rag() -> int:
     create_collection(client)
 
     info = client.get_collection(COLLECTION_NAME)
-    if info.points_count > 0:
-        return info.points_count
+    points_count = info.points_count or 0
+    if points_count > 0 and _payload_has_korean(client):
+        return points_count
 
+    # Stale schema or empty — wipe and re-ingest.
+    if points_count > 0:
+        client.delete_collection(COLLECTION_NAME)
+        create_collection(client)
     return ingest_products(client)
+
+
+def _payload_has_korean(client: QdrantClient) -> bool:
+    """Return True if the first stored point already carries a name_ko
+    field. Cheap probe used to decide whether to re-ingest on startup."""
+    try:
+        points, _ = client.scroll(collection_name=COLLECTION_NAME, limit=1, with_payload=True)
+    except Exception:
+        return False
+    if not points:
+        return False
+    payload = points[0].payload or {}
+    return "name_ko" in payload

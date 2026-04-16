@@ -61,4 +61,9 @@ Thumbs.db
 logs/
 
 # Claude Code
-.claude/settings.local.json
+.claude/
+
+# Internal research and planning (kept local, not published)
+docs/
+plans/
+SB1_AI_Personal_Financial_Coach.md

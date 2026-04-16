@@ -31,7 +31,20 @@ function HomeInner() {
   const demoMode = searchParams.get("demo") === "1";
   const [tab, setTab] = useState<TabValue>(initialTab);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [analysing, setAnalysing] = useState(false);
   const { t } = useT();
+
+  const handleAgentPending = () => {
+    setRefreshKey((k) => k + 1);
+    setAnalysing(true);
+    // Hard cap — if the agent takes too long or decides to stay silent
+    // we still clear the skeleton so the feed doesn't pulse forever.
+    setTimeout(() => setAnalysing(false), 45_000);
+  };
+
+  const handleCardArrived = () => {
+    setAnalysing(false);
+  };
 
   // Keep tab in sync when the URL changes (e.g. quick-prompt chip navigates to ?tab=plan).
   useEffect(() => {
@@ -60,7 +73,12 @@ function HomeInner() {
             monthlySpending={24845043}
           />
           <RecentTransactions customerId={CUSTOMER_ID} refreshKey={refreshKey} />
-          <InsightFeed customerId={CUSTOMER_ID} refreshKey={refreshKey} />
+          <InsightFeed
+            customerId={CUSTOMER_ID}
+            refreshKey={refreshKey}
+            analysing={analysing}
+            onCardArrived={handleCardArrived}
+          />
         </TabsContent>
 
         <TabsContent value="plan" className="flex flex-col gap-4">
@@ -79,10 +97,7 @@ function HomeInner() {
       <BottomNav value={tab} onChange={setTab} />
 
       {demoMode && (
-        <DemoPanel
-          customerId={CUSTOMER_ID}
-          onInjected={() => setRefreshKey((k) => k + 1)}
-        />
+        <DemoPanel customerId={CUSTOMER_ID} onInjected={handleAgentPending} />
       )}
     </AppShell>
   );

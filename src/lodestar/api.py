@@ -585,19 +585,20 @@ class DemoTransactionRequest(BaseModel):
 
 @app.post("/demo/transaction")
 async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
-    """Insert a synthetic transaction, re-evaluate triggers for that
-    customer, and return any new insight cards that fired.
+    """Insert a synthetic transaction and hand it to the autonomous agent.
 
-    Uses the exact same trigger + compose path as the background loop —
-    `/demo/transaction` is literally the autonomous pipeline invoked by
-    an explicit event rather than a timer.
+    The endpoint itself is fast: it writes the transaction row and fires
+    `agents.detector.analyze_transaction` in the background. The agent
+    decides — via an LLM tool-call loop over the rule sensors — whether
+    the new transaction warrants a card, and composes the card in all
+    three locales if so. Cards appear in the feed via SSE when the agent
+    finishes reasoning (typically 3-15s depending on LLM backend).
+
+    This is the agentic pipeline invoked by an explicit customer action.
     """
-    from lodestar.agents.background import (
-        _compose_insight_card,
-        _is_duplicate,
-        _store_insight,
-    )
-    from lodestar.agents.triggers import run_all_triggers
+    from lodestar.agents.background import _store_insight
+    from lodestar.agents.detector import analyze_transaction
+    from lodestar.models import Transaction as _Tx
 
     today = date.today().isoformat()
     transaction_id = f"TX-DEMO-{uuid.uuid4().hex[:10]}"
@@ -630,7 +631,7 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
         )
         await db.commit()
 
-        # Re-fetch the customer's recent transaction window for trigger eval.
+        # Re-fetch the customer's recent transaction window for the agent.
         start_date = (date.today() - timedelta(days=120)).isoformat()
         cursor = await db.execute(
             "SELECT * FROM transactions WHERE customer_id = ? AND date >= ? ORDER BY date",
@@ -640,7 +641,6 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
     finally:
         await db.close()
 
-    from lodestar.models import Transaction as _Tx
     transactions = [
         _Tx(
             transaction_id=r["transaction_id"],
@@ -655,21 +655,25 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
         )
         for r in tx_rows
     ]
+    new_tx = next(
+        (t for t in transactions if t.transaction_id == transaction_id), transactions[-1]
+    )
 
-    events = run_all_triggers(transactions, body.customer_id)
-    # Filter to events where the just-injected transaction is the actual
-    # evidence — not baseline-only patterns the agent already knew about.
-    # This keeps the demo narrative tight: a simulated action produces a
-    # card directly attributable to that action.
-    events = [e for e in events if _demo_event_caused_by(e, body)]
-    new_cards: list[InsightCard] = []
-    for event in events:
-        if await _is_duplicate(body.customer_id, event.trigger_type):
-            continue
-        card = _compose_insight_card(event)
-        await _store_insight(card)
-        new_cards.append(card)
-        logger.info("Demo insight: %s for %s", card.title, body.customer_id)
+    async def _run_agent():
+        try:
+            cards = await analyze_transaction(new_tx, transactions, body.customer_id)
+            for card in cards:
+                await _store_insight(card)
+                logger.info(
+                    "Agent insight stored: %s for %s (%s)",
+                    card.title,
+                    body.customer_id,
+                    card.insight_id,
+                )
+        except Exception:
+            logger.exception("Detector agent failed for tx %s", transaction_id)
+
+    asyncio.create_task(_run_agent())
 
     return {
         "transaction_id": transaction_id,
@@ -680,72 +684,14 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
             "entity": body.entity,
             "date": today,
         },
-        "new_insights": [c.model_dump() for c in new_cards],
+        # Frontend treats this as "a skeleton card might appear in the feed
+        # within ~30s". SSE delivers the real card when the agent is done.
+        "agent_pending": True,
     }
 
 
-# Life-event merchant keywords mirror the trigger rule (triggers.py) —
-# kept here only for the evidence check, not for detection.
-_LIFE_EVENT_MERCHANT_KEYWORDS = {
-    "kids plaza",
-    "con cưng",
-    "con cung",
-    "bibo mart",
-    "phụ sản",
-    "phu san",
-    "mothercare",
-    "bđs",
-    "bds",
-    "vinhomes",
-    "nội thất",
-    "noi that",
-    "ikea",
-    "điện máy xanh",
-    "dien may xanh",
-    "đào tạo",
-    "dao tao",
-    "coworking",
-    "coursera",
-    "udemy",
-}
-
-
-def _demo_event_caused_by(event, body: DemoTransactionRequest) -> bool:
-    """Return True only when the just-injected demo transaction is
-    directly the evidence for this trigger event.
-
-    Prevents spurious baseline-pattern cards (e.g. a recurring-change
-    trigger from the seeded transaction history) from being attributed
-    to the user's demo click.
-    """
-    from lodestar.agents.triggers import TriggerType
-
-    merchant = (body.merchant or "").lower()
-    category = (body.category or "").lower()
-    is_outflow = body.amount < 0
-
-    if event.trigger_type == TriggerType.VELOCITY_ANOMALY:
-        ctx_cat = (event.context.get("category") or "").lower()
-        return is_outflow and category == ctx_cat
-
-    if event.trigger_type == TriggerType.RECURRING_CHANGE:
-        ctx_merchant = (event.context.get("merchant") or "").lower()
-        if not ctx_merchant:
-            return False
-        return is_outflow and (merchant == ctx_merchant or merchant in ctx_merchant)
-
-    if event.trigger_type == TriggerType.PAYDAY_DETECTED:
-        return category == "salary" and body.amount > 0
-
-    if event.trigger_type == TriggerType.BUDGET_THRESHOLD:
-        # Only attribute if this is a spend transaction (it added to the
-        # monthly total that crossed the threshold).
-        return is_outflow
-
-    if event.trigger_type == TriggerType.LIFE_EVENT:
-        return any(kw in merchant for kw in _LIFE_EVENT_MERCHANT_KEYWORDS)
-
-    return True
+# (The old `_demo_event_caused_by` filter was removed when detection
+#  moved to the LLM agent — context judgement is now the agent's job.)
 
 
 # --- Health ---

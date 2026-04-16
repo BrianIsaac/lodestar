@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Radio, Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Radio, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Empty,
@@ -25,17 +26,31 @@ interface Props {
   /** Bumped by the parent when a demo transaction is injected, forcing a
    *  REST refetch in addition to the SSE diff stream. */
   refreshKey?: number;
+  /** True while a detector agent is reasoning about a newly-injected
+   *  transaction. Renders a pulsing "Coach is analysing…" skeleton at
+   *  the top of the feed until a real card arrives via SSE or the
+   *  parent clears it. */
+  analysing?: boolean;
+  /** Called when a new SSE card lands so the parent can clear
+   *  `analysing` and stop the skeleton. */
+  onCardArrived?: (insightId: string) => void;
 }
 
 type FeedState =
   | { status: "loading" }
   | { status: "ready"; cards: InsightCardType[] };
 
-export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
+export function InsightFeed({
+  customerId,
+  refreshKey = 0,
+  analysing = false,
+  onCardArrived,
+}: Props) {
   const [state, setState] = useState<FeedState>({ status: "loading" });
   const { t } = useT();
   const { mode } = useLayoutMode();
   const stream = useInsightStream(customerId);
+  const lastSeenStreamIdRef = useRef<string | null>(null);
   const cardGridClass =
     mode === "web"
       ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3"
@@ -70,6 +85,17 @@ export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
     };
   }, [customerId, refreshKey]);
 
+  // Notify the parent whenever a new SSE card arrives so it can clear
+  // the "Coach is analysing…" skeleton.
+  useEffect(() => {
+    if (!stream.cards.length) return;
+    const latest = stream.cards[0];
+    if (!latest?.insight_id) return;
+    if (lastSeenStreamIdRef.current === latest.insight_id) return;
+    lastSeenStreamIdRef.current = latest.insight_id;
+    onCardArrived?.(latest.insight_id);
+  }, [stream.cards, onCardArrived]);
+
   const handleDismiss = useCallback(
     (insightId: string) => {
       let previous: InsightCardType[] = [];
@@ -97,7 +123,7 @@ export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
     );
   }
 
-  if (cards.length === 0) {
+  if (cards.length === 0 && !analysing) {
     return (
       <Empty>
         <EmptyHeader>
@@ -123,6 +149,7 @@ export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
         </AlertDescription>
       </Alert>
       <div className={cardGridClass}>
+        {analysing && <AnalysingSkeleton />}
         {cards.map((card) => {
           // Cards delivered by the SSE stream get a brief entrance pulse
           // so the audience sees the agent react live.
@@ -142,6 +169,35 @@ export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
     </div>
   );
 }
+
+function AnalysingSkeleton() {
+  const { t } = useT();
+  return (
+    <Card className="relative overflow-hidden border-l-4 border-l-primary/60 bg-primary/5">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15">
+            <Loader2 className="size-5 animate-spin text-primary" />
+          </span>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-primary">
+              {t("coach_analysing_title")}
+            </span>
+            <p className="text-xs leading-snug text-muted-foreground">
+              {t("coach_analysing_desc")}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Skeleton className="h-2 w-3/4 rounded" />
+          <Skeleton className="h-2 w-11/12 rounded" />
+          <Skeleton className="h-2 w-2/3 rounded" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 
 function StreamStatusBadge({ status }: { status: "connecting" | "live" | "closed" }) {
   const { t } = useT();

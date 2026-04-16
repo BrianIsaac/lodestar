@@ -146,7 +146,10 @@ export interface DemoTransactionResult {
     entity: string;
     date: string;
   };
-  new_insights: InsightCard[];
+  agent_pending: boolean;
+  /** Kept for compat with earlier versions — no longer populated now
+   *  that the detector agent runs asynchronously. */
+  new_insights?: InsightCard[];
 }
 
 export async function postDemoTransaction(

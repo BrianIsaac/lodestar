@@ -162,13 +162,8 @@ export function DemoPanel({ customerId, onInjected }: Props) {
   async function inject(payload: DemoTransactionPayload) {
     setBusy(true);
     try {
-      const result = await postDemoTransaction(payload);
-      if (result.new_insights.length > 0) {
-        const card = result.new_insights[0];
-        toast.success(t("demo_toast_new_insight", { title: card.title }));
-      } else {
-        toast.success(t("demo_toast_recorded", { merchant: payload.merchant }));
-      }
+      await postDemoTransaction(payload);
+      toast.success(t("demo_toast_agent_reasoning", { merchant: payload.merchant }));
       onInjected?.();
     } catch {
       toast.error(t("demo_toast_error"));

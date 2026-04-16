@@ -8,41 +8,50 @@ import { Spinner } from "@/components/ui/spinner";
 import { ChartRenderer } from "@/components/chart-renderer";
 import { sendChat } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useT } from "@/lib/i18n";
+import { useT, type StringKey } from "@/lib/i18n";
 import type { ChatMessage } from "@/lib/types";
 
 interface Props {
   insightId: string;
   customerId: string;
   initialContext?: string;
+  /** Optional override. Falls back to language-aware defaults built from the
+   *  chat_prompt_* i18n keys. */
   suggestedPrompts?: string[];
 }
 
-/** Suggestion chips stay in Vietnamese across languages: the Coach LLM is
- *  tuned to respond in Vietnamese, so we keep the prompts it understands
- *  best even when the surrounding chrome is English. */
-const DEFAULT_PROMPTS = [
-  "Tôi nên làm gì tiếp theo?",
-  "Nếu tôi mua nhà 2 tỷ thì sao?",
-  "Có sản phẩm nào phù hợp không?",
+const DEFAULT_PROMPT_KEYS: StringKey[] = [
+  "chat_prompt_next",
+  "chat_prompt_scenario",
+  "chat_prompt_product",
 ];
 
 export function DrillDownChat({
   insightId,
   customerId,
   initialContext,
-  suggestedPrompts = DEFAULT_PROMPTS,
+  suggestedPrompts,
 }: Props) {
+  const { lang, t } = useT();
+  const defaults = DEFAULT_PROMPT_KEYS.map((k) => t(k));
+  const initialFollowups = suggestedPrompts ?? defaults;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [followups, setFollowups] = useState<string[]>(suggestedPrompts);
+  const [followups, setFollowups] = useState<string[]>(initialFollowups);
   const scrollAnchor = useRef<HTMLDivElement>(null);
-  const { lang, t } = useT();
 
   useEffect(() => {
     scrollAnchor.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
+
+  // Reset the empty-thread prompt set when the language changes so chips
+  // don't keep showing the previously-selected language's text.
+  useEffect(() => {
+    if (messages.length === 0 && !suggestedPrompts) {
+      setFollowups(DEFAULT_PROMPT_KEYS.map((k) => t(k)));
+    }
+  }, [lang, messages.length, suggestedPrompts, t]);
 
   async function submit(text: string) {
     const content = text.trim();

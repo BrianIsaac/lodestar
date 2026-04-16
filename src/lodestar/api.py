@@ -90,6 +90,15 @@ async def startup() -> None:
     cards = await run_background_cycle()
     logger.info("Initial background cycle: %d insight cards", len(cards))
 
+    # Fire-and-forget: translate current feed titles + summaries into En and
+    # Ko so the first user who toggles language after boot sees an instant
+    # cached feed instead of paying the LLM round-trip per card.
+    if cards:
+        from lodestar.agents.translate import warm_cache_for_cards
+        pairs = [(c.title, c.summary) for c in cards]
+        asyncio.create_task(warm_cache_for_cards(pairs))
+        logger.info("Translation warm-up queued for %d cards", len(cards))
+
 
 # --- Insight Feed ---
 
@@ -206,7 +215,7 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
     except Exception as e:
         logger.exception("Chat error")
         return ChatResponse(
-            message=ChatMessage(role="assistant", content=f"Lỗi hệ thống: {type(e).__name__}"),
+            message=ChatMessage(role="assistant", content=_system_error(body.language, e)),
         )
 
 
@@ -228,8 +237,21 @@ async def chat_general(body: ChatRequest) -> ChatResponse:
     except Exception as e:
         logger.exception("Chat error")
         return ChatResponse(
-            message=ChatMessage(role="assistant", content=f"Lỗi hệ thống: {type(e).__name__}"),
+            message=ChatMessage(role="assistant", content=_system_error(body.language, e)),
         )
+
+
+_SYSTEM_ERROR: dict[str, str] = {
+    "vi": "Lỗi hệ thống",
+    "en": "System error",
+    "ko": "시스템 오류",
+}
+
+
+def _system_error(language: str, exc: BaseException) -> str:
+    """Format a language-appropriate system error line for a chat response."""
+    prefix = _SYSTEM_ERROR.get(language, _SYSTEM_ERROR["vi"])
+    return f"{prefix}: {type(exc).__name__}"
 
 
 # --- Scenario Simulation ---
@@ -250,6 +272,7 @@ async def simulate_scenario(request: ScenarioRequest) -> ScenarioResult:
         customer_id=request.customer_id,
         scenario_type=request.scenario_type,
         parameters=request.parameters,
+        language=request.language,
     )
 
 
@@ -310,19 +333,56 @@ async def create_goal(body: CreateGoalRequest) -> SavingsGoal:
 # --- Products ---
 
 @app.get("/products/search")
-async def search_products(query: str, customer_id: str | None = None) -> list[ProductInfo]:
+async def search_products(
+    query: str,
+    customer_id: str | None = None,
+    language: str = "vi",
+) -> list[ProductInfo]:
     """RAG-powered product search with optional eligibility filtering.
 
     Args:
-        query: Search query.
+        query: Search query (Vietnamese or English — bge-m3 is multilingual).
         customer_id: Optional customer for eligibility check.
+        language: Display language. Vietnamese returns stored fields
+            verbatim. For English, the catalogue already carries `name_en`
+            on every product, so names are free. For Korean — and for
+            descriptions in any non-Vi locale — text is fed through the
+            two-tier translation cache so repeat searches are instant.
 
     Returns:
-        Ranked product list.
+        Ranked product list, localised to the requested language.
     """
     from lodestar.tools.products import search_products as _search
+    from lodestar.agents.translate import translate_many
 
-    return await _search(query)
+    products = await _search(query)
+
+    if language == "vi" or not products:
+        return products
+
+    # Vietnamese descriptions → target language (always translated since
+    # the catalogue has only Vietnamese descriptions).
+    descriptions_vi = [p.description_vi or "" for p in products]
+    descriptions_out = await translate_many(descriptions_vi, language)
+
+    # Names: Korean has no catalogue field, so translate from Vietnamese.
+    # English already has name_en on every product — use it directly.
+    if language == "ko":
+        names_out = await translate_many([p.name_vi for p in products], language)
+    else:
+        names_out = [p.name_en or p.name_vi for p in products]
+
+    out: list[ProductInfo] = []
+    for p, new_name, new_desc in zip(products, names_out, descriptions_out):
+        out.append(
+            p.model_copy(
+                update={
+                    "name_vi": new_name,
+                    "description_vi": new_desc,
+                }
+            )
+        )
+    return out
 
 
 # --- SSE Insight Stream ---

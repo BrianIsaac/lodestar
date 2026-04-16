@@ -83,6 +83,40 @@ const DICT = {
 
   // Qwen badge
   powered_by: { vi: "Vận hành bởi", en: "Powered by", ko: "제공" },
+
+  // Chat suggestion prompts (sent to the LLM, rendered as chips)
+  chat_prompt_next: {
+    vi: "Tôi nên làm gì tiếp theo?",
+    en: "What should I do next?",
+    ko: "다음에 무엇을 해야 할까요?",
+  },
+  chat_prompt_scenario: {
+    vi: "Nếu tôi mua nhà 2 tỷ thì sao?",
+    en: "What if I buy a 2B VND home?",
+    ko: "20억 VND 주택을 산다면 어떻게 될까요?",
+  },
+  chat_prompt_product: {
+    vi: "Có sản phẩm nào phù hợp không?",
+    en: "Are there any products that fit?",
+    ko: "적합한 상품이 있나요?",
+  },
+
+  // Product search suggestion chips (sent to the bge-m3 retriever)
+  products_suggestion_credit: {
+    vi: "thẻ tín dụng cho lương 10 triệu",
+    en: "credit card for 10M income",
+    ko: "월급 천만 동 신용카드",
+  },
+  products_suggestion_home_loan: {
+    vi: "vay mua nhà",
+    en: "home loan",
+    ko: "주택 담보 대출",
+  },
+  products_suggestion_life_insurance: {
+    vi: "bảo hiểm nhân thọ",
+    en: "life insurance",
+    ko: "생명 보험",
+  },
   card_cta: { vi: "Xem chi tiết", en: "View details", ko: "자세히 보기" },
   dismiss_aria: { vi: "Bỏ qua", en: "Dismiss", ko: "닫기" },
   dismiss_success: {
@@ -239,6 +273,8 @@ const DICT = {
     en: 'Chart type "{type}" is not supported',
     ko: '"{type}" 차트 유형은 지원되지 않습니다',
   },
+  chart_label_amount: { vi: "Số tiền", en: "Amount", ko: "금액" },
+  chart_label_value: { vi: "Giá trị", en: "Value", ko: "값" },
 } as const;
 
 export type StringKey = keyof typeof DICT;

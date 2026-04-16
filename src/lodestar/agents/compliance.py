@@ -27,8 +27,30 @@ GUIDANCE_PATTERNS = [
     r"(?i)tip:",
 ]
 
-DISCLAIMER_VI = "Đây là thông tin tham khảo, không phải tư vấn tài chính."
-DISCLAIMER_EN = "This is informational content, not financial advice."
+DISCLAIMERS: dict[str, str] = {
+    "vi": "Đây là thông tin tham khảo, không phải tư vấn tài chính.",
+    "en": "This is informational content, not financial advice.",
+    "ko": "본 내용은 참고용 정보이며 금융 자문이 아닙니다.",
+}
+
+REFUSALS: dict[str, str] = {
+    "vi": (
+        "Xin lỗi, tôi chỉ có thể cung cấp thông tin sản phẩm. "
+        "Để được tư vấn tài chính, vui lòng liên hệ chuyên viên Shinhan."
+    ),
+    "en": (
+        "I can only provide product information. "
+        "For financial advice, please contact a Shinhan advisor."
+    ),
+    "ko": (
+        "저는 상품 정보만 제공할 수 있습니다. "
+        "금융 자문이 필요하시면 신한 상담원에게 문의해 주세요."
+    ),
+}
+
+# Backwards-compat aliases for tests/code that imported the old constants.
+DISCLAIMER_VI = DISCLAIMERS["vi"]
+DISCLAIMER_EN = DISCLAIMERS["en"]
 
 
 def classify_output(text: str) -> ComplianceClass:
@@ -56,27 +78,21 @@ def apply_compliance(text: str, language: str = "vi") -> tuple[str, ComplianceCl
 
     Args:
         text: The response text to process.
-        language: Language code for disclaimer.
+        language: Language code — "vi", "en", or "ko". Unknown codes fall
+            back to Vietnamese.
 
     Returns:
         Tuple of (processed text, classification).
         If classified as advice, text is replaced with a refusal.
         If classified as guidance, disclaimer is appended.
     """
+    lang = language if language in DISCLAIMERS else "vi"
     classification = classify_output(text)
 
     if classification == ComplianceClass.ADVICE:
-        refusal = (
-            "Xin lỗi, tôi chỉ có thể cung cấp thông tin sản phẩm. "
-            "Để được tư vấn tài chính, vui lòng liên hệ chuyên viên Shinhan."
-            if language == "vi"
-            else "I can only provide product information. "
-            "For financial advice, please contact a Shinhan advisor."
-        )
-        return refusal, classification
+        return REFUSALS[lang], classification
 
     if classification == ComplianceClass.GUIDANCE:
-        disclaimer = DISCLAIMER_VI if language == "vi" else DISCLAIMER_EN
-        return f"{text}\n\n{disclaimer}", classification
+        return f"{text}\n\n{DISCLAIMERS[lang]}", classification
 
     return text, classification

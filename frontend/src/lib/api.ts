@@ -56,7 +56,8 @@ export async function sendChat(
 export async function simulateScenario(
   customerId: string,
   scenarioType: string,
-  parameters: Record<string, unknown>
+  parameters: Record<string, unknown>,
+  language: string = "vi"
 ): Promise<ScenarioResult> {
   const res = await fetch(`${API}/simulate`, {
     method: "POST",
@@ -65,6 +66,7 @@ export async function simulateScenario(
       customer_id: customerId,
       scenario_type: scenarioType,
       parameters,
+      language,
     }),
   });
   if (!res.ok) throw new Error(`Simulation error: ${res.status}`);
@@ -97,10 +99,12 @@ export async function createGoal(
   return res.json();
 }
 
-export async function searchProducts(query: string): Promise<ProductInfo[]> {
-  const res = await fetch(
-    `${API}/products/search?query=${encodeURIComponent(query)}`
-  );
+export async function searchProducts(
+  query: string,
+  language: string = "vi"
+): Promise<ProductInfo[]> {
+  const params = new URLSearchParams({ query, language });
+  const res = await fetch(`${API}/products/search?${params.toString()}`);
   if (!res.ok) throw new Error(`Search error: ${res.status}`);
   return res.json();
 }

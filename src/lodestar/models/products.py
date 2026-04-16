@@ -60,6 +60,7 @@ class ScenarioRequest(BaseModel):
     customer_id: str
     scenario_type: str = Field(description="home_purchase | career_change | new_baby | marriage")
     parameters: dict = Field(default_factory=dict)
+    language: str = Field(default="vi", description="Display language: vi | en | ko")
 
 
 class ScenarioResult(BaseModel):

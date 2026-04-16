@@ -19,13 +19,12 @@ import { formatVNDCompact } from "@/lib/format";
 import { useT, type StringKey } from "@/lib/i18n";
 import type { ProductInfo } from "@/lib/types";
 
-/** Vietnamese suggestion chips kept literal — the RAG index speaks Vietnamese
- *  so hitting the backend with these terms produces the best results
- *  regardless of the UI language. */
-const SUGGESTIONS = [
-  "thẻ tín dụng cho lương 10 triệu",
-  "vay mua nhà",
-  "bảo hiểm nhân thọ",
+/** Suggestion keys — resolved per language via useT(). bge-m3 is multilingual
+ *  so Vi/En/Ko queries all retrieve sensibly from the Vietnamese catalogue. */
+const SUGGESTION_KEYS: StringKey[] = [
+  "products_suggestion_credit",
+  "products_suggestion_home_loan",
+  "products_suggestion_life_insurance",
 ];
 
 const ENTITY_LABEL_KEY: Record<string, StringKey> = {
@@ -49,7 +48,7 @@ export function ProductSearch() {
     setLoading(true);
     setSearched(true);
     try {
-      const list = await searchProducts(q);
+      const list = await searchProducts(q, lang);
       setResults(list);
     } catch {
       setResults([]);
@@ -84,16 +83,19 @@ export function ProductSearch() {
 
       {!searched && (
         <div className="flex flex-wrap gap-2">
-          {SUGGESTIONS.map((s) => (
-            <button
-              key={s}
-              type="button"
-              onClick={() => run(s)}
-              className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
-            >
-              {s}
-            </button>
-          ))}
+          {SUGGESTION_KEYS.map((key) => {
+            const label = t(key);
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => run(label)}
+                className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-medium transition-colors hover:bg-muted"
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -111,14 +113,15 @@ export function ProductSearch() {
 
       <div className="flex flex-col gap-2">
         {results.map((p) => {
-          const name = lang === "en" && p.name_en ? p.name_en : p.name_vi;
+          // Backend has already localised name_vi/description_vi in place
+          // for the requested language — render those fields directly.
           const entityKey = ENTITY_LABEL_KEY[p.entity];
           return (
             <Card key={p.product_id}>
               <CardContent className="flex flex-col gap-2 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-sm font-semibold leading-tight">{name}</span>
+                    <span className="text-sm font-semibold leading-tight">{p.name_vi}</span>
                     {p.description_vi && (
                       <span className="text-xs text-muted-foreground">{p.description_vi}</span>
                     )}

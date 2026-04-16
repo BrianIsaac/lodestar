@@ -113,6 +113,9 @@ def _compose_insight_card(event: TriggerEvent) -> InsightCard:
 async def _store_insight(card: InsightCard) -> None:
     """Persist an insight card to the database.
 
+    Also kicks off a fire-and-forget translation task so English and Korean
+    versions are ready in the persistent cache before the user toggles.
+
     Args:
         card: InsightCard to store.
     """
@@ -138,6 +141,15 @@ async def _store_insight(card: InsightCard) -> None:
         await db.commit()
     finally:
         await db.close()
+
+    # Pre-translate this card's title + summary into En and Ko in the
+    # background. Errors are logged inside warm_cache_for_cards and do not
+    # affect the caller.
+    try:
+        from lodestar.agents.translate import warm_cache_for_cards
+        asyncio.create_task(warm_cache_for_cards([(card.title, card.summary)]))
+    except Exception:
+        logger.exception("Failed to schedule translation warm-up for %s", card.insight_id)
 
 
 async def _is_duplicate(customer_id: str, trigger_type: TriggerType) -> bool:

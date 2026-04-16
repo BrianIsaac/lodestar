@@ -132,10 +132,11 @@ function BarChartView({ spec, compact }: Props) {
 }
 
 function LineChartView({ spec, compact }: Props) {
+  const { t } = useT();
   const periods = (spec.data.periods as string[]) ?? [];
   const amounts = (spec.data.amounts as number[]) ?? [];
   const data = periods.map((period, i) => ({ period, amount: amounts[i] ?? 0 }));
-  const config: ChartConfig = { amount: { label: "Số tiền", color: "var(--color-chart-1)" } };
+  const config: ChartConfig = { amount: { label: t("chart_label_amount"), color: "var(--color-chart-1)" } };
   const minH = compact ? "min-h-[120px]" : "min-h-[200px]";
 
   return (
@@ -205,6 +206,7 @@ function computeWaterfallRows(steps: WaterfallStep[]): WaterfallRow[] {
  * stacked bar chart with an invisible "base" segment per bar.
  */
 function WaterfallChart({ spec, compact }: Props) {
+  const { t } = useT();
   const steps = (spec.data.steps as WaterfallStep[]) ?? [];
   const data = computeWaterfallRows(steps);
 
@@ -216,7 +218,7 @@ function WaterfallChart({ spec, compact }: Props) {
         : "var(--color-chart-5)";
 
   const config: ChartConfig = {
-    value: { label: "Giá trị", color: "var(--color-chart-1)" },
+    value: { label: t("chart_label_value"), color: "var(--color-chart-1)" },
   };
 
   const minH = compact ? "min-h-[140px]" : "min-h-[220px]";

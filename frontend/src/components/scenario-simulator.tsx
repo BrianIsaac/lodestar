@@ -44,19 +44,24 @@ export function ScenarioSimulator({ customerId }: Props) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScenarioResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const { t } = useT();
+  const { lang, t } = useT();
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      const res = await simulateScenario(customerId, "home_purchase", {
-        property_price: Number(price),
-        down_payment_pct: Number(down),
-        loan_term_months: Number(term),
-        interest_rate: Number(rate),
-      });
+      const res = await simulateScenario(
+        customerId,
+        "home_purchase",
+        {
+          property_value: Number(price),
+          down_payment_pct: Number(down),
+          term_months: Number(term),
+          interest_rate: Number(rate),
+        },
+        lang
+      );
       setResult(res);
     } catch {
       setError(t("sim_error"));

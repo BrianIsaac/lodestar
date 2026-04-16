@@ -122,16 +122,23 @@ TOOL_DEFINITIONS = [
 ]
 
 
-async def _execute_tool(name: str, arguments: dict) -> str:
+async def _execute_tool(name: str, arguments: dict, language: str = "vi") -> str:
     """Execute a workflow tool and return the result as a string.
 
     Args:
         name: Tool name.
         arguments: Tool arguments from the LLM.
+        language: Target display language. Workflow `insight_text` output is
+            produced in Vietnamese by the subgraph nodes; if the requested
+            language is anything else, it is fed through the two-tier
+            translation cache before being returned to the orchestrator.
+            This avoids the LLM re-translating identical text every turn.
 
     Returns:
         JSON string of tool results.
     """
+    from lodestar.agents.translate import translate_text
+
     if name == "spending_analysis":
         from lodestar.agents.workflows.spending import spending_graph
         result = await spending_graph.ainvoke({
@@ -139,8 +146,9 @@ async def _execute_tool(name: str, arguments: dict) -> str:
             "period": arguments["period"],
             "summary": None, "anomalies": [], "chart_spec": None, "insight_text": "",
         })
+        insight_text = await translate_text(result["insight_text"], language)
         return json.dumps({
-            "insight_text": result["insight_text"],
+            "insight_text": insight_text,
             "chart_spec": result["chart_spec"].model_dump() if result["chart_spec"] else None,
         }, ensure_ascii=False)
 
@@ -151,7 +159,8 @@ async def _execute_tool(name: str, arguments: dict) -> str:
             "customer_id": arguments.get("customer_id"),
             "results": [], "eligibility_checked": [], "insight_text": "",
         })
-        return json.dumps({"insight_text": result["insight_text"]}, ensure_ascii=False)
+        insight_text = await translate_text(result["insight_text"], language)
+        return json.dumps({"insight_text": insight_text}, ensure_ascii=False)
 
     elif name == "scenario_simulation":
         from lodestar.agents.workflows.scenario import scenario_graph
@@ -161,8 +170,9 @@ async def _execute_tool(name: str, arguments: dict) -> str:
             "parameters": arguments.get("parameters", {}),
             "result": None, "chart_spec": None, "insight_text": "",
         })
+        insight_text = await translate_text(result["insight_text"], language)
         return json.dumps({
-            "insight_text": result["insight_text"],
+            "insight_text": insight_text,
             "chart_spec": result["chart_spec"].model_dump() if result["chart_spec"] else None,
         }, ensure_ascii=False)
 
@@ -232,7 +242,7 @@ async def chat(
             if "customer_id" not in tool_args:
                 tool_args["customer_id"] = customer_id
 
-            tool_result = await _execute_tool(tool_name, tool_args)
+            tool_result = await _execute_tool(tool_name, tool_args, language=language)
             tool_data = json.loads(tool_result)
 
             if "chart_spec" in tool_data and tool_data["chart_spec"]:
@@ -255,7 +265,7 @@ async def chat(
         else:
             assistant_text = choice.message.content or ""
 
-        filtered_text, _ = apply_compliance(assistant_text)
+        filtered_text, _ = apply_compliance(assistant_text, language=language)
 
         return ChatResponse(
             message=ChatMessage(
@@ -269,9 +279,15 @@ async def chat(
 
     except Exception as e:
         logger.exception("Orchestrator error")
+        error_messages = {
+            "vi": "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại.",
+            "en": "Sorry, something went wrong. Please try again.",
+            "ko": "죄송합니다. 오류가 발생했습니다. 다시 시도해주세요.",
+        }
+        msg = error_messages.get(language, error_messages["vi"])
         return ChatResponse(
             message=ChatMessage(
                 role="assistant",
-                content=f"Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại. ({type(e).__name__})",
+                content=f"{msg} ({type(e).__name__})",
             ),
         )

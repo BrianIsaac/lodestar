@@ -163,3 +163,15 @@ export async function postDemoTransaction(
   if (!res.ok) throw new Error(`Demo injection error: ${res.status}`);
   return res.json();
 }
+
+export interface DemoResetResult {
+  customer_id: string;
+  cards_deleted: number;
+  demo_transactions_deleted: number;
+}
+
+export async function postDemoReset(customerId: string): Promise<DemoResetResult> {
+  const res = await fetch(`${API}/demo/reset/${customerId}`, { method: "POST" });
+  if (!res.ok) throw new Error(`Demo reset error: ${res.status}`);
+  return res.json();
+}

@@ -694,6 +694,43 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
 #  moved to the LLM agent — context judgement is now the agent's job.)
 
 
+@app.post("/demo/reset/{customer_id}")
+async def reset_demo(customer_id: str) -> dict:
+    """Return the demo to its post-boot "ready" state for one customer.
+
+    Drops every insight card the agent has produced and every injected
+    demo transaction (rows whose id is prefixed ``TX-DEMO-``). The seeded
+    baseline history is preserved so rule sensors still have real
+    patterns to reason against on the next simulation.
+    """
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "DELETE FROM insight_cards WHERE customer_id = ?", (customer_id,)
+        )
+        cards_deleted = cursor.rowcount
+        cursor = await db.execute(
+            "DELETE FROM transactions WHERE customer_id = ? AND transaction_id LIKE 'TX-DEMO-%'",
+            (customer_id,),
+        )
+        tx_deleted = cursor.rowcount
+        await db.commit()
+    finally:
+        await db.close()
+
+    logger.info(
+        "Demo reset for %s — %d cards, %d demo transactions dropped",
+        customer_id,
+        cards_deleted,
+        tx_deleted,
+    )
+    return {
+        "customer_id": customer_id,
+        "cards_deleted": cards_deleted,
+        "demo_transactions_deleted": tx_deleted,
+    }
+
+
 # --- Health ---
 
 @app.get("/health")

@@ -46,6 +46,11 @@ function HomeInner() {
     setAnalysing(false);
   };
 
+  const handleDemoReset = () => {
+    setAnalysing(false);
+    setRefreshKey((k) => k + 1);
+  };
+
   // Keep tab in sync when the URL changes (e.g. quick-prompt chip navigates to ?tab=plan).
   useEffect(() => {
     const urlTab = searchParams.get("tab") as TabValue | null;
@@ -97,7 +102,11 @@ function HomeInner() {
       <BottomNav value={tab} onChange={setTab} />
 
       {demoMode && (
-        <DemoPanel customerId={CUSTOMER_ID} onInjected={handleAgentPending} />
+        <DemoPanel
+          customerId={CUSTOMER_ID}
+          onInjected={handleAgentPending}
+          onReset={handleDemoReset}
+        />
       )}
     </AppShell>
   );

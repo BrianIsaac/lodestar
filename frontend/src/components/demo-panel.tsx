@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Activity, Play } from "lucide-react";
+import { Activity, Play, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,12 +15,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { postDemoTransaction, type DemoTransactionPayload } from "@/lib/api";
+import { postDemoReset, postDemoTransaction, type DemoTransactionPayload } from "@/lib/api";
 import { useT } from "@/lib/i18n";
 
 interface Props {
   customerId: string;
   onInjected?: () => void;
+  onReset?: () => void;
 }
 
 interface Preset {
@@ -152,7 +153,7 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
   ];
 }
 
-export function DemoPanel({ customerId, onInjected }: Props) {
+export function DemoPanel({ customerId, onInjected, onReset }: Props) {
   const [busy, setBusy] = useState(false);
   const [customMerchant, setCustomMerchant] = useState("");
   const [customAmount, setCustomAmount] = useState("");
@@ -167,6 +168,19 @@ export function DemoPanel({ customerId, onInjected }: Props) {
       onInjected?.();
     } catch {
       toast.error(t("demo_toast_error"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reset() {
+    setBusy(true);
+    try {
+      await postDemoReset(customerId);
+      toast.success(t("demo_reset_toast_ok"));
+      onReset?.();
+    } catch {
+      toast.error(t("demo_reset_toast_err"));
     } finally {
       setBusy(false);
     }
@@ -208,6 +222,25 @@ export function DemoPanel({ customerId, onInjected }: Props) {
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-4">
+          <div className="flex items-start gap-3 rounded-lg border border-dashed border-border bg-muted/30 p-3">
+            <div className="flex-1">
+              <p className="text-xs font-semibold">{t("demo_reset_button")}</p>
+              <p className="text-[11px] leading-snug text-muted-foreground">
+                {t("demo_reset_hint")}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={reset}
+              disabled={busy}
+              className="shrink-0"
+            >
+              <RotateCcw data-icon="inline-start" />
+              {t("demo_reset_button")}
+            </Button>
+          </div>
           {presetsFor(customerId).map((group) => (
             <section key={group.group} className="flex flex-col gap-2">
               <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">

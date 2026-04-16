@@ -159,6 +159,26 @@ const DICT = {
     en: "Could not record the transaction.",
     ko: "거래를 기록하지 못했습니다.",
   },
+  demo_reset_button: {
+    vi: "Đặt lại bản demo",
+    en: "Reset demo",
+    ko: "데모 초기화",
+  },
+  demo_reset_hint: {
+    vi: "Xoá các thẻ và giao dịch mô phỏng đã thêm. Lịch sử gốc giữ nguyên.",
+    en: "Clear insight cards and simulated transactions. Baseline history is kept.",
+    ko: "인사이트 카드와 시뮬레이션 거래를 지웁니다. 기본 기록은 유지됩니다.",
+  },
+  demo_reset_toast_ok: {
+    vi: "Đã đặt lại. Bảng sẵn sàng cho lượt mô phỏng tiếp theo.",
+    en: "Reset done. Feed is ready for a fresh simulation.",
+    ko: "초기화 완료. 다음 시뮬레이션 준비가 되었습니다.",
+  },
+  demo_reset_toast_err: {
+    vi: "Không đặt lại được bản demo.",
+    en: "Could not reset the demo.",
+    ko: "데모를 초기화하지 못했습니다.",
+  },
 
   // Tool call indicator
   chat_tool_running: {

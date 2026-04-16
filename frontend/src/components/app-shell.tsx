@@ -1,0 +1,40 @@
+"use client";
+
+import Link from "next/link";
+import { Compass } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ThemeToggle } from "@/components/theme-toggle";
+
+interface Props {
+  children: React.ReactNode;
+  customerInitials?: string;
+}
+
+export function AppShell({ children, customerInitials = "KH" }: Props) {
+  return (
+    <div className="min-h-dvh bg-background">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3 px-4 py-3">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
+              <Compass className="size-4" />
+            </span>
+            <span className="flex flex-col leading-tight">
+              <span className="text-sm font-semibold tracking-tight">Lodestar</span>
+              <span className="text-[10px] font-medium text-muted-foreground">Shinhan SOL · Coach</span>
+            </span>
+          </Link>
+          <div className="flex items-center gap-1.5">
+            <ThemeToggle />
+            <Avatar className="size-8">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                {customerInitials}
+              </AvatarFallback>
+            </Avatar>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-md px-4 pt-4 pb-24">{children}</main>
+    </div>
+  );
+}

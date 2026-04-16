@@ -95,10 +95,14 @@ async def startup() -> None:
         await seed()
         logger.info("Seeded synthetic data")
 
-    # Start with a clean feed on every boot. Transaction history stays
-    # intact so trigger rules still have a baseline to detect anomalies.
+    # Start with a clean feed on every boot. Transaction history and the
+    # learning journal are preserved — only the ephemeral card stream
+    # resets, along with the interactions/reflections that reference each
+    # card via FK (otherwise DELETE FROM insight_cards aborts).
     db = await get_db()
     try:
+        await db.execute("DELETE FROM reflections")
+        await db.execute("DELETE FROM interactions")
         await db.execute("DELETE FROM insight_cards")
         await db.commit()
     finally:
@@ -857,6 +861,11 @@ async def reset_demo(customer_id: str) -> dict:
     from lodestar.learning.journal import delete_lessons_for_customer
     from lodestar.learning.reflection import delete_reflections_for_customer
 
+    # Order matters — interactions.insight_id FK references insight_cards,
+    # so we have to drop the child rows (reflections + interactions) before
+    # the insight_cards they point at.
+    reflections_deleted = await delete_reflections_for_customer(customer_id)
+
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -877,7 +886,6 @@ async def reset_demo(customer_id: str) -> dict:
         await db.close()
 
     lessons_deleted = await delete_lessons_for_customer(customer_id)
-    reflections_deleted = await delete_reflections_for_customer(customer_id)
 
     logger.info(
         "Demo reset for %s — %d cards, %d demo tx, %d goals, %d lessons, %d reflections dropped",

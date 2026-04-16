@@ -24,14 +24,14 @@ out/
 next-env.d.ts
 *.tsbuildinfo
 
-# Generated data
-data/coach.db
-data/coach.db-journal
-data/coach.db-shm
-data/coach.db-wal
-data/qdrant/
-data/qdrant_test/
-data/qdrant_test_wf/
+# Generated data (match at any depth — backend may be run from subdirs)
+**/data/coach.db
+**/data/coach.db-journal
+**/data/coach.db-shm
+**/data/coach.db-wal
+**/data/qdrant/
+**/data/qdrant_test/
+**/data/qdrant_test_wf/
 
 # Model weights / caches
 *.gguf

@@ -55,8 +55,6 @@ Open <http://localhost:3000>.
 
 ```
 lodestar/
-├── docs/                          # 17 research documents
-├── plans/                         # Implementation plan
 ├── src/lodestar/
 │   ├── api.py                     # FastAPI endpoints
 │   ├── config.py                  # Pydantic settings
@@ -75,16 +73,9 @@ lodestar/
 │   └── nlp/                       # Vietnamese NLP helpers
 ├── frontend/                      # Next.js + shadcn/ui + Recharts
 ├── tests/                         # 80+ tests across all modules
-├── SB1_AI_Personal_Financial_Coach.md   # Master design doc
 ├── pyproject.toml
 └── LICENSE                        # Apache 2.0
 ```
-
-## Documentation
-
-- [Master Design Document](SB1_AI_Personal_Financial_Coach.md) — full architecture, research, and novelty assessment
-- [Research Docs](docs/README.md) — 17 augmented research documents
-- [Implementation Plan](plans/2026-04-03-sb1-financial-coach-poc.md) — 8-phase build plan with verification checkpoints
 
 ## License
 

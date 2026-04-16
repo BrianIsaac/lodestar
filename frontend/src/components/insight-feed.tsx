@@ -103,10 +103,12 @@ export function InsightFeed({ customerId }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <Alert className="relative">
+      <div className="flex items-center justify-end">
+        <StreamStatusBadge status={stream.status} />
+      </div>
+      <Alert>
         <Sparkles />
         <AlertDescription>{t("compliance_banner")}</AlertDescription>
-        <StreamStatusBadge status={stream.status} />
       </Alert>
       {cards.map((card) => (
         <InsightCard key={card.insight_id} card={card} onDismiss={handleDismiss} />
@@ -121,7 +123,7 @@ function StreamStatusBadge({ status }: { status: "connecting" | "live" | "closed
   return (
     <span
       className={cn(
-        "absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
         active
           ? "bg-primary/10 text-primary"
           : "bg-muted text-muted-foreground"

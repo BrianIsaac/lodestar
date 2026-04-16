@@ -14,6 +14,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InsightCard } from "@/components/insight-card";
 import { dismissInsight, fetchFeed } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { InsightCard as InsightCardType } from "@/lib/types";
 
 interface Props {
@@ -28,10 +29,15 @@ export function InsightFeed({ customerId }: Props) {
   const [state, setState] = useState<FeedState>({ status: "loading" });
   const cards = state.status === "ready" ? state.cards : [];
   const loading = state.status === "loading";
+  const { lang, t } = useT();
 
   useEffect(() => {
     let cancelled = false;
-    fetchFeed(customerId)
+    // Reset to loading when customerId or language changes so the user sees
+    // skeletons while the backend re-translates the feed.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setState({ status: "loading" });
+    fetchFeed(customerId, lang)
       .then((feed) => {
         if (!cancelled) setState({ status: "ready", cards: feed.cards });
       })
@@ -41,7 +47,7 @@ export function InsightFeed({ customerId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [customerId]);
+  }, [customerId, lang]);
 
   const handleDismiss = useCallback(
     (insightId: string) => {
@@ -53,11 +59,11 @@ export function InsightFeed({ customerId }: Props) {
       });
       dismissInsight(insightId, customerId).catch(() => {
         setState({ status: "ready", cards: previous });
-        toast.error("Không thể bỏ qua insight. Vui lòng thử lại.");
+        toast.error(t("dismiss_error"));
       });
-      toast.success("Đã bỏ qua. Coach sẽ ghi nhận phản hồi.");
+      toast.success(t("dismiss_success"));
     },
-    [customerId]
+    [customerId, t]
   );
 
   if (loading) {
@@ -77,10 +83,8 @@ export function InsightFeed({ customerId }: Props) {
           <EmptyMedia variant="icon">
             <Sparkles />
           </EmptyMedia>
-          <EmptyTitle>Chưa có insight nào</EmptyTitle>
-          <EmptyDescription>
-            Coach đang theo dõi giao dịch của bạn. Quay lại sau ít phút.
-          </EmptyDescription>
+          <EmptyTitle>{t("feed_empty_title")}</EmptyTitle>
+          <EmptyDescription>{t("feed_empty_desc")}</EmptyDescription>
         </EmptyHeader>
       </Empty>
     );
@@ -90,9 +94,7 @@ export function InsightFeed({ customerId }: Props) {
     <div className="flex flex-col gap-3">
       <Alert>
         <Sparkles />
-        <AlertDescription>
-          Lodestar cung cấp thông tin tham khảo, không phải tư vấn tài chính.
-        </AlertDescription>
+        <AlertDescription>{t("compliance_banner")}</AlertDescription>
       </Alert>
       {cards.map((card) => (
         <InsightCard key={card.insight_id} card={card} onDismiss={handleDismiss} />

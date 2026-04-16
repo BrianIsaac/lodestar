@@ -21,6 +21,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { formatVNDCompact } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { ChartSpec } from "@/lib/types";
 
 const COLORS = [
@@ -52,12 +53,17 @@ export function ChartRenderer({ spec, compact }: Props) {
     case "progress":
       return <ProgressChart spec={spec} />;
     default:
-      return (
-        <p className="text-xs text-muted-foreground">
-          Không hỗ trợ biểu đồ &quot;{spec.chart_type}&quot;
-        </p>
-      );
+      return <UnsupportedChart type={spec.chart_type} />;
   }
+}
+
+function UnsupportedChart({ type }: { type: string }) {
+  const { t } = useT();
+  return (
+    <p className="text-xs text-muted-foreground">
+      {t("chart_unsupported", { type })}
+    </p>
+  );
 }
 
 function buildChartConfig(labels: string[]): ChartConfig {

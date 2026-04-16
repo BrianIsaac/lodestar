@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Compass } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   children: React.ReactNode;
@@ -11,6 +13,8 @@ interface Props {
 }
 
 export function AppShell({ children, customerInitials = "KH" }: Props) {
+  const { t } = useT();
+
   return (
     <div className="min-h-dvh bg-background">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -21,12 +25,15 @@ export function AppShell({ children, customerInitials = "KH" }: Props) {
             </span>
             <span className="flex flex-col leading-tight">
               <span className="text-sm font-semibold tracking-tight">Lodestar</span>
-              <span className="text-[10px] font-medium text-muted-foreground">Shinhan SOL · Coach</span>
+              <span className="text-[10px] font-medium text-muted-foreground">
+                {t("brand_subtitle")}
+              </span>
             </span>
           </Link>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
+            <LanguageToggle />
             <ThemeToggle />
-            <Avatar className="size-8">
+            <Avatar className="ml-1 size-8">
               <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                 {customerInitials}
               </AvatarFallback>

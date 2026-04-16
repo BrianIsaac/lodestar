@@ -9,15 +9,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useT } from "@/lib/i18n";
 
 export function ThemeToggle() {
   const { setTheme } = useTheme();
+  const { t } = useT();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon-sm" aria-label="Đổi giao diện">
+          <Button variant="ghost" size="icon-sm" aria-label={t("theme_aria")}>
             <Sun className="scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90" />
             <Moon className="absolute scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0" />
           </Button>
@@ -26,15 +28,15 @@ export function ThemeToggle() {
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => setTheme("light")}>
           <Sun data-icon="inline-start" />
-          Sáng
+          {t("theme_light")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("dark")}>
           <Moon data-icon="inline-start" />
-          Tối
+          {t("theme_dark")}
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => setTheme("system")}>
           <Monitor data-icon="inline-start" />
-          Theo hệ thống
+          {t("theme_system")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

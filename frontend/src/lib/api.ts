@@ -10,8 +10,12 @@ import type {
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-export async function fetchFeed(customerId: string): Promise<InsightFeed> {
-  const res = await fetch(`${API}/feed/${customerId}`);
+export async function fetchFeed(
+  customerId: string,
+  language: string = "vi"
+): Promise<InsightFeed> {
+  const params = new URLSearchParams({ language });
+  const res = await fetch(`${API}/feed/${customerId}?${params.toString()}`);
   if (!res.ok) throw new Error(`Feed error: ${res.status}`);
   return res.json();
 }
@@ -31,7 +35,8 @@ export async function sendChat(
   insightId: string | null,
   customerId: string,
   message: string,
-  insightContext?: string
+  insightContext?: string,
+  language: string = "vi"
 ): Promise<ChatResponse> {
   const endpoint = insightId ? `${API}/chat/${insightId}` : `${API}/chat`;
   const res = await fetch(endpoint, {
@@ -41,6 +46,7 @@ export async function sendChat(
       customer_id: customerId,
       message,
       insight_context: insightContext ?? "",
+      language,
     }),
   });
   if (!res.ok) throw new Error(`Chat error: ${res.status}`);

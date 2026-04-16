@@ -8,6 +8,7 @@ import { CustomerHero } from "@/components/customer-hero";
 import { InsightFeed } from "@/components/insight-feed";
 import { GoalsView } from "@/components/goals-view";
 import { ProductSearch } from "@/components/product-search";
+import { useT } from "@/lib/i18n";
 
 const CUSTOMER_ID = "C001";
 const CUSTOMER_NAME = "Nguyễn Minh Anh";
@@ -15,6 +16,7 @@ const CUSTOMER_INITIALS = "MA";
 
 export default function Home() {
   const [tab, setTab] = useState<TabValue>("feed");
+  const { t } = useT();
 
   return (
     <AppShell customerInitials={CUSTOMER_INITIALS}>
@@ -30,10 +32,8 @@ export default function Home() {
 
         <TabsContent value="products" className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-semibold tracking-tight">Sản phẩm Shinhan</h2>
-            <p className="text-xs text-muted-foreground">
-              Tìm kiếm thẻ tín dụng, vay, bảo hiểm và đầu tư bằng tiếng Việt.
-            </p>
+            <h2 className="text-sm font-semibold tracking-tight">{t("products_heading")}</h2>
+            <p className="text-xs text-muted-foreground">{t("products_subheading")}</p>
           </div>
           <ProductSearch />
         </TabsContent>

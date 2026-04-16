@@ -1,11 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { AlertTriangle, Baby, Target, Sparkles, Wallet } from "lucide-react";
+import { AlertTriangle, Baby, Sparkles, Target, Wallet } from "lucide-react";
+import type { StringKey } from "@/lib/i18n";
 
 export type Severity = "life_event" | "anomaly" | "milestone" | "info" | "product";
 
 interface SeverityMeta {
   icon: LucideIcon;
-  labelVi: string;
+  labelKey: StringKey;
   badgeVariant: "default" | "secondary" | "destructive" | "outline";
   /** Tailwind classes for the card's left-border accent. */
   borderClass: string;
@@ -17,7 +18,7 @@ interface SeverityMeta {
 export const SEVERITY_META: Record<Severity, SeverityMeta> = {
   life_event: {
     icon: Baby,
-    labelVi: "Sự kiện cuộc sống",
+    labelKey: "sev_life_event",
     badgeVariant: "destructive",
     borderClass: "border-l-destructive",
     iconBgClass: "bg-destructive/10",
@@ -25,7 +26,7 @@ export const SEVERITY_META: Record<Severity, SeverityMeta> = {
   },
   anomaly: {
     icon: AlertTriangle,
-    labelVi: "Bất thường",
+    labelKey: "sev_anomaly",
     badgeVariant: "default",
     borderClass: "border-l-primary",
     iconBgClass: "bg-primary/10",
@@ -33,7 +34,7 @@ export const SEVERITY_META: Record<Severity, SeverityMeta> = {
   },
   milestone: {
     icon: Target,
-    labelVi: "Mốc quan trọng",
+    labelKey: "sev_milestone",
     badgeVariant: "secondary",
     borderClass: "border-l-chart-4",
     iconBgClass: "bg-chart-4/10",
@@ -41,7 +42,7 @@ export const SEVERITY_META: Record<Severity, SeverityMeta> = {
   },
   info: {
     icon: Sparkles,
-    labelVi: "Thông tin",
+    labelKey: "sev_info",
     badgeVariant: "outline",
     borderClass: "border-l-accent",
     iconBgClass: "bg-accent/30",
@@ -49,7 +50,7 @@ export const SEVERITY_META: Record<Severity, SeverityMeta> = {
   },
   product: {
     icon: Wallet,
-    labelVi: "Sản phẩm",
+    labelKey: "sev_product",
     badgeVariant: "secondary",
     borderClass: "border-l-chart-2",
     iconBgClass: "bg-chart-2/10",

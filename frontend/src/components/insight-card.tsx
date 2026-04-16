@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ChartRenderer } from "@/components/chart-renderer";
 import { cn } from "@/lib/utils";
 import { getSeverityMeta } from "@/components/severity";
+import { useT } from "@/lib/i18n";
 import type { InsightCard as InsightCardType } from "@/lib/types";
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
 export function InsightCard({ card, onDismiss }: Props) {
   const meta = getSeverityMeta(card.severity);
   const Icon = meta.icon;
+  const { t } = useT();
 
   return (
     <Card
@@ -31,7 +33,7 @@ export function InsightCard({ card, onDismiss }: Props) {
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label="Bỏ qua"
+          aria-label={t("dismiss_aria")}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -58,7 +60,7 @@ export function InsightCard({ card, onDismiss }: Props) {
             </span>
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex items-center gap-2">
-                <Badge variant={meta.badgeVariant}>{meta.labelVi}</Badge>
+                <Badge variant={meta.badgeVariant}>{t(meta.labelKey)}</Badge>
               </div>
               <h3 className="text-sm font-semibold leading-tight">{card.title}</h3>
               <p className="text-xs text-muted-foreground">{card.summary}</p>
@@ -73,7 +75,7 @@ export function InsightCard({ card, onDismiss }: Props) {
 
           <div className="flex items-center justify-end text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              Xem chi tiết
+              {t("card_cta")}
               <ChevronRight className="size-3.5" />
             </span>
           </div>

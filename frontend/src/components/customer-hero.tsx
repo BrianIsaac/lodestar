@@ -3,6 +3,7 @@
 import { TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatVNDCompact } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 
 interface Props {
   name: string;
@@ -13,6 +14,7 @@ interface Props {
 /** Greeting card shown at the top of the Feed. Values fall back to placeholders
  *  when the backend summary isn't loaded yet. */
 export function CustomerHero({ name, monthlyIncome, monthlySpending }: Props) {
+  const { t } = useT();
   const net =
     monthlyIncome != null && monthlySpending != null ? monthlyIncome - monthlySpending : null;
 
@@ -22,7 +24,7 @@ export function CustomerHero({ name, monthlyIncome, monthlySpending }: Props) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <span className="text-[11px] font-medium uppercase tracking-wider opacity-80">
-              Xin chào
+              {t("greeting_hello")}
             </span>
             <h2 className="text-xl font-semibold leading-tight">{name}</h2>
           </div>
@@ -32,9 +34,19 @@ export function CustomerHero({ name, monthlyIncome, monthlySpending }: Props) {
         </div>
 
         <div className="grid grid-cols-3 gap-2 rounded-xl bg-white/10 p-3 text-sm backdrop-blur">
-          <Stat label="Thu nhập" value={monthlyIncome != null ? formatVNDCompact(monthlyIncome) : "—"} />
-          <Stat label="Chi tiêu" value={monthlySpending != null ? formatVNDCompact(monthlySpending) : "—"} />
-          <Stat label="Còn lại" value={net != null ? formatVNDCompact(net) : "—"} accent={net != null && net < 0} />
+          <Stat
+            label={t("stat_income")}
+            value={monthlyIncome != null ? formatVNDCompact(monthlyIncome) : "—"}
+          />
+          <Stat
+            label={t("stat_spending")}
+            value={monthlySpending != null ? formatVNDCompact(monthlySpending) : "—"}
+          />
+          <Stat
+            label={t("stat_remaining")}
+            value={net != null ? formatVNDCompact(net) : "—"}
+            accent={net != null && net < 0}
+          />
         </div>
       </CardContent>
     </Card>

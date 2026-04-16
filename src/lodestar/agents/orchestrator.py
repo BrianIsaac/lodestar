@@ -16,7 +16,7 @@ from lodestar.models import ChatMessage, ChatResponse, ChartSpec
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """Bạn là trợ lý tài chính AI cho Shinhan Bank Việt Nam, được nhúng trong ứng dụng SOL.
+SYSTEM_PROMPT_VI = """Bạn là trợ lý tài chính AI cho Shinhan Bank Việt Nam, được nhúng trong ứng dụng SOL.
 
 Vai trò:
 - Phân tích chi tiêu, thu nhập và lịch sử giao dịch của khách hàng
@@ -29,7 +29,48 @@ Quy tắc:
 - Trả lời ngắn gọn, rõ ràng, dễ hiểu
 - Khi không chắc chắn, đề xuất liên hệ chuyên viên Shinhan
 
-You also speak English and Korean for international customers."""
+LUÔN trả lời bằng tiếng Việt."""
+
+SYSTEM_PROMPT_EN = """You are the AI financial coach for Shinhan Bank Vietnam, embedded in the SOL app.
+
+Role:
+- Analyse the customer's spending, income, and transaction history
+- Suggest savings plans and relevant product information
+- Answer financial questions in clear, natural English
+
+Rules:
+- ALWAYS use the provided tools for any calculation — NEVER compute values yourself
+- Provide product INFORMATION only, NEVER give investment advice
+- Keep answers concise and clear
+- When unsure, suggest contacting a Shinhan advisor
+
+ALWAYS answer in English, even if the user's question is in Vietnamese.
+Tool results may come back in Vietnamese — translate all user-facing output to English."""
+
+SYSTEM_PROMPT_KO = """당신은 신한은행 베트남의 SOL 앱에 내장된 AI 금융 코치입니다.
+
+역할:
+- 고객의 지출, 수입, 거래 내역 분석
+- 저축 계획 및 적합한 상품 정보 제안
+- 자연스러운 한국어로 금융 관련 질문에 답변
+
+규칙:
+- 모든 계산은 반드시 제공된 도구(tools)를 사용 — 직접 계산하지 말 것
+- 상품 정보만 제공하며, 투자 자문은 절대 제공하지 말 것
+- 답변은 간결하고 명확하게
+- 확실하지 않을 때는 신한 상담원 문의를 제안할 것
+
+항상 한국어로 답변하십시오. 사용자의 질문이 베트남어로 들어와도 한국어로 답변해야 합니다.
+도구의 결과가 베트남어로 나오면 사용자에게 보여주는 모든 내용을 한국어로 번역하십시오."""
+
+
+def _system_prompt_for(language: str) -> str:
+    """Pick the system prompt that matches the requested language."""
+    if language == "en":
+        return SYSTEM_PROMPT_EN
+    if language == "ko":
+        return SYSTEM_PROMPT_KO
+    return SYSTEM_PROMPT_VI
 
 TOOL_DEFINITIONS = [
     {
@@ -144,6 +185,7 @@ async def chat(
     messages: list[ChatMessage],
     customer_id: str,
     insight_context: str = "",
+    language: str = "vi",
 ) -> ChatResponse:
     """Process a user message through the reactive orchestrator.
 
@@ -151,13 +193,15 @@ async def chat(
         messages: Conversation history.
         customer_id: Current customer ID (for tool context).
         insight_context: Pre-loaded insight context if drilling down.
+        language: Target response language — "vi", "en", or "ko". Selects
+            the system prompt that constrains the assistant's output.
 
     Returns:
         ChatResponse with assistant message and optional chart.
     """
     client = _get_client()
 
-    system_content = SYSTEM_PROMPT
+    system_content = _system_prompt_for(language)
     if insight_context:
         system_content += f"\n\nContext from insight:\n{insight_context}"
     system_content += f"\n\nCurrent customer: {customer_id}"

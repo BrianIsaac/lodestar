@@ -3,6 +3,7 @@
 import type { LucideIcon } from "lucide-react";
 import { Compass, Newspaper, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useT, type StringKey } from "@/lib/i18n";
 
 export type TabValue = "feed" | "plan" | "products";
 
@@ -14,19 +15,21 @@ interface Props {
 interface Item {
   value: TabValue;
   icon: LucideIcon;
-  label: string;
+  labelKey: StringKey;
 }
 
 const ITEMS: Item[] = [
-  { value: "feed", icon: Newspaper, label: "Bảng tin" },
-  { value: "plan", icon: Compass, label: "Kế hoạch" },
-  { value: "products", icon: Wallet, label: "Sản phẩm" },
+  { value: "feed", icon: Newspaper, labelKey: "tab_feed" },
+  { value: "plan", icon: Compass, labelKey: "tab_plan" },
+  { value: "products", icon: Wallet, labelKey: "tab_products" },
 ];
 
 export function BottomNav({ value, onChange }: Props) {
+  const { t } = useT();
+
   return (
     <nav
-      aria-label="Điều hướng chính"
+      aria-label={t("nav_aria")}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/70"
     >
       <div className="mx-auto flex max-w-md items-stretch justify-around px-2 pt-1 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
@@ -45,7 +48,7 @@ export function BottomNav({ value, onChange }: Props) {
               )}
             >
               <Icon className={cn("size-5 transition-transform", active && "scale-110")} />
-              <span>{item.label}</span>
+              <span>{t(item.labelKey)}</span>
             </button>
           );
         })}

@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { ChartRenderer } from "@/components/chart-renderer";
 import { sendChat } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n";
 import type { ChatMessage } from "@/lib/types";
 
 interface Props {
@@ -17,6 +18,9 @@ interface Props {
   suggestedPrompts?: string[];
 }
 
+/** Suggestion chips stay in Vietnamese across languages: the Coach LLM is
+ *  tuned to respond in Vietnamese, so we keep the prompts it understands
+ *  best even when the surrounding chrome is English. */
 const DEFAULT_PROMPTS = [
   "Tôi nên làm gì tiếp theo?",
   "Nếu tôi mua nhà 2 tỷ thì sao?",
@@ -34,6 +38,7 @@ export function DrillDownChat({
   const [loading, setLoading] = useState(false);
   const [followups, setFollowups] = useState<string[]>(suggestedPrompts);
   const scrollAnchor = useRef<HTMLDivElement>(null);
+  const { lang, t } = useT();
 
   useEffect(() => {
     scrollAnchor.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -50,7 +55,7 @@ export function DrillDownChat({
     setFollowups([]);
 
     try {
-      const resp = await sendChat(insightId, customerId, content, initialContext);
+      const resp = await sendChat(insightId, customerId, content, initialContext, lang);
       setMessages((xs) => [...xs, resp.message]);
       if (resp.suggested_followups?.length) {
         setFollowups(resp.suggested_followups);
@@ -60,7 +65,7 @@ export function DrillDownChat({
         ...xs,
         {
           role: "assistant",
-          content: "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại.",
+          content: t("chat_error"),
           chart_spec: null,
         },
       ]);
@@ -74,7 +79,7 @@ export function DrillDownChat({
       <div className="flex flex-col gap-3">
         {messages.length === 0 && !loading && (
           <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-            Hỏi Coach điều gì đó — ví dụ tôi nên chuẩn bị tài chính ra sao, hoặc mô phỏng kịch bản mua nhà.
+            {t("chat_empty_prompt")}
           </div>
         )}
 
@@ -85,7 +90,7 @@ export function DrillDownChat({
         {loading && (
           <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
             <Spinner className="size-4 text-primary" />
-            <span>Coach đang suy nghĩ…</span>
+            <span>{t("chat_thinking")}</span>
           </div>
         )}
         <div ref={scrollAnchor} />
@@ -116,14 +121,14 @@ export function DrillDownChat({
         <Input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Hỏi Coach…"
+          placeholder={t("chat_placeholder")}
           className="flex-1 border-none bg-transparent text-sm focus-visible:ring-0"
           disabled={loading}
         />
         <Button
           type="submit"
           size="icon-sm"
-          aria-label="Gửi"
+          aria-label={t("chat_send_aria")}
           disabled={loading || !input.trim()}
         >
           <Send />

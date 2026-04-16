@@ -35,6 +35,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { ScenarioSimulator } from "@/components/scenario-simulator";
 import { createGoal, fetchGoals } from "@/lib/api";
 import { formatDate, formatVND } from "@/lib/format";
+import { useT } from "@/lib/i18n";
 import type { SavingsGoal } from "@/lib/types";
 
 interface Props {
@@ -44,6 +45,7 @@ interface Props {
 export function GoalsView({ customerId }: Props) {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  const { t } = useT();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -65,7 +67,7 @@ export function GoalsView({ customerId }: Props) {
     <div className="flex flex-col gap-5">
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold tracking-tight">Mục tiêu tiết kiệm</h2>
+          <h2 className="text-sm font-semibold tracking-tight">{t("goals_heading")}</h2>
           <NewGoalDialog customerId={customerId} onCreated={refresh} />
         </div>
 
@@ -81,10 +83,8 @@ export function GoalsView({ customerId }: Props) {
               <EmptyMedia variant="icon">
                 <Target />
               </EmptyMedia>
-              <EmptyTitle>Chưa có mục tiêu</EmptyTitle>
-              <EmptyDescription>
-                Tạo một mục tiêu tiết kiệm để Coach giúp bạn theo dõi tiến độ.
-              </EmptyDescription>
+              <EmptyTitle>{t("goals_empty_title")}</EmptyTitle>
+              <EmptyDescription>{t("goals_empty_desc")}</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (
@@ -98,10 +98,8 @@ export function GoalsView({ customerId }: Props) {
 
       <section className="flex flex-col gap-3">
         <div>
-          <h2 className="text-sm font-semibold tracking-tight">Mô phỏng kịch bản</h2>
-          <p className="text-xs text-muted-foreground">
-            Lodestar phân tích tác động trên cả bốn đơn vị Shinhan.
-          </p>
+          <h2 className="text-sm font-semibold tracking-tight">{t("sim_heading")}</h2>
+          <p className="text-xs text-muted-foreground">{t("sim_subheading")}</p>
         </div>
         <ScenarioSimulator customerId={customerId} />
       </section>
@@ -110,6 +108,7 @@ export function GoalsView({ customerId }: Props) {
 }
 
 function GoalCard({ goal }: { goal: SavingsGoal }) {
+  const { t } = useT();
   const pct =
     goal.target_amount > 0
       ? Math.min(100, Math.max(0, (goal.current_amount / goal.target_amount) * 100))
@@ -119,7 +118,7 @@ function GoalCard({ goal }: { goal: SavingsGoal }) {
       <CardHeader className="pb-2">
         <CardTitle className="text-sm">{goal.name}</CardTitle>
         <CardDescription className="text-xs">
-          Hạn: {formatDate(goal.target_date)}
+          {t("goals_deadline")}: {formatDate(goal.target_date)}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
@@ -147,6 +146,7 @@ function NewGoalDialog({
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const { t } = useT();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -154,14 +154,14 @@ function NewGoalDialog({
     setSaving(true);
     try {
       await createGoal(customerId, name, Number(amount), date);
-      toast.success("Đã tạo mục tiêu mới");
+      toast.success(t("goals_created"));
       setOpen(false);
       setName("");
       setAmount("");
       setDate("");
       onCreated();
     } catch {
-      toast.error("Không tạo được mục tiêu. Thử lại sau.");
+      toast.error(t("goals_create_error"));
     } finally {
       setSaving(false);
     }
@@ -173,28 +173,28 @@ function NewGoalDialog({
         render={
           <Button size="sm" variant="secondary">
             <Plus data-icon="inline-start" />
-            Tạo mục tiêu
+            {t("goals_new")}
           </Button>
         }
       />
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Mục tiêu mới</DialogTitle>
-          <DialogDescription>Đặt mục tiêu tiết kiệm và theo dõi tiến độ.</DialogDescription>
+          <DialogTitle>{t("goals_dialog_title")}</DialogTitle>
+          <DialogDescription>{t("goals_dialog_desc")}</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <FieldGroup>
             <Field>
-              <FieldLabel htmlFor="goal-name">Tên mục tiêu</FieldLabel>
+              <FieldLabel htmlFor="goal-name">{t("goals_field_name")}</FieldLabel>
               <Input
                 id="goal-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ví dụ: Quỹ khẩn cấp"
+                placeholder={t("goals_field_name_placeholder")}
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="goal-amount">Số tiền mục tiêu (VND)</FieldLabel>
+              <FieldLabel htmlFor="goal-amount">{t("goals_field_amount")}</FieldLabel>
               <Input
                 id="goal-amount"
                 type="number"
@@ -205,7 +205,7 @@ function NewGoalDialog({
               />
             </Field>
             <Field>
-              <FieldLabel htmlFor="goal-date">Ngày hoàn thành</FieldLabel>
+              <FieldLabel htmlFor="goal-date">{t("goals_field_date")}</FieldLabel>
               <Input
                 id="goal-date"
                 type="date"
@@ -215,9 +215,15 @@ function NewGoalDialog({
             </Field>
           </FieldGroup>
           <DialogFooter className="mt-4">
-            <DialogClose render={<Button variant="ghost" type="button">Huỷ</Button>} />
+            <DialogClose
+              render={
+                <Button variant="ghost" type="button">
+                  {t("goals_cancel")}
+                </Button>
+              }
+            />
             <Button type="submit" disabled={saving}>
-              {saving ? "Đang lưu…" : "Lưu mục tiêu"}
+              {saving ? t("goals_saving") : t("goals_save")}
             </Button>
           </DialogFooter>
         </form>

@@ -13,6 +13,7 @@ import { AppShell } from "@/components/app-shell";
 import { getSeverityMeta } from "@/components/severity";
 import { cn } from "@/lib/utils";
 import { fetchFeed } from "@/lib/api";
+import { useT } from "@/lib/i18n";
 import type { InsightCard as InsightCardType } from "@/lib/types";
 
 const CUSTOMER_ID = "C001";
@@ -26,10 +27,15 @@ export default function InsightPage({
   const { id } = use(params);
   const [card, setCard] = useState<InsightCardType | null>(null);
   const [loading, setLoading] = useState(true);
+  const { lang, t } = useT();
 
   useEffect(() => {
     let cancelled = false;
-    fetchFeed(CUSTOMER_ID)
+    // Reset loading when language changes so the insight context card shows
+    // a skeleton while the backend re-translates.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLoading(true);
+    fetchFeed(CUSTOMER_ID, lang)
       .then((feed) => {
         if (cancelled) return;
         setCard(feed.cards.find((c) => c.insight_id === id) ?? null);
@@ -43,7 +49,7 @@ export default function InsightPage({
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, lang]);
 
   return (
     <AppShell customerInitials={CUSTOMER_INITIALS}>
@@ -51,7 +57,7 @@ export default function InsightPage({
         <Link href="/" className="inline-flex">
           <Button variant="ghost" size="sm" className="-ml-2">
             <ArrowLeft data-icon="inline-start" />
-            Quay lại bảng tin
+            {t("back_to_feed")}
           </Button>
         </Link>
 
@@ -62,7 +68,7 @@ export default function InsightPage({
         ) : (
           <Card className="border-dashed">
             <CardContent className="p-4 text-sm text-muted-foreground">
-              Không tìm thấy insight. Có thể đã bị bỏ qua.
+              {t("insight_not_found")}
             </CardContent>
           </Card>
         )}
@@ -82,6 +88,7 @@ export default function InsightPage({
 function InsightContext({ card }: { card: InsightCardType }) {
   const meta = getSeverityMeta(card.severity);
   const Icon = meta.icon;
+  const { t } = useT();
   return (
     <Card className={cn("overflow-hidden border-l-4 p-0", meta.borderClass)}>
       <CardContent className="flex flex-col gap-3 p-4">
@@ -96,7 +103,7 @@ function InsightContext({ card }: { card: InsightCardType }) {
           </span>
           <div className="flex flex-col gap-1">
             <Badge variant={meta.badgeVariant} className="self-start">
-              {meta.labelVi}
+              {t(meta.labelKey)}
             </Badge>
             <h1 className="text-base font-semibold leading-tight">{card.title}</h1>
             <p className="text-sm text-muted-foreground">{card.summary}</p>

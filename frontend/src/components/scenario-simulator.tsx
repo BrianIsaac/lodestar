@@ -19,17 +19,21 @@ import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui
 import { cn } from "@/lib/utils";
 import { formatVND } from "@/lib/format";
 import { simulateScenario } from "@/lib/api";
+import { useT, type StringKey } from "@/lib/i18n";
 import type { ScenarioResult } from "@/lib/types";
 
 interface Props {
   customerId: string;
 }
 
-const ENTITY_META: Record<string, { icon: LucideIcon; labelVi: string; colorClass: string }> = {
-  bank: { icon: Building2, labelVi: "Ngân hàng", colorClass: "text-chart-1" },
-  finance: { icon: PiggyBank, labelVi: "Tài chính tiêu dùng", colorClass: "text-chart-2" },
-  securities: { icon: TrendingUp, labelVi: "Chứng khoán", colorClass: "text-chart-4" },
-  life: { icon: Shield, labelVi: "Bảo hiểm nhân thọ", colorClass: "text-chart-5" },
+const ENTITY_META: Record<
+  string,
+  { icon: LucideIcon; labelKey: StringKey; colorClass: string }
+> = {
+  bank: { icon: Building2, labelKey: "entity_bank", colorClass: "text-chart-1" },
+  finance: { icon: PiggyBank, labelKey: "entity_finance", colorClass: "text-chart-2" },
+  securities: { icon: TrendingUp, labelKey: "entity_securities", colorClass: "text-chart-4" },
+  life: { icon: Shield, labelKey: "entity_life", colorClass: "text-chart-5" },
 };
 
 export function ScenarioSimulator({ customerId }: Props) {
@@ -40,6 +44,7 @@ export function ScenarioSimulator({ customerId }: Props) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScenarioResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const { t } = useT();
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
@@ -54,7 +59,7 @@ export function ScenarioSimulator({ customerId }: Props) {
       });
       setResult(res);
     } catch {
-      setError("Mô phỏng thất bại. Vui lòng thử lại.");
+      setError(t("sim_error"));
     } finally {
       setLoading(false);
     }
@@ -64,16 +69,14 @@ export function ScenarioSimulator({ customerId }: Props) {
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Nếu tôi mua nhà…</CardTitle>
-          <CardDescription className="text-xs">
-            Lodestar mô phỏng tác động trên cả bốn đơn vị Shinhan.
-          </CardDescription>
+          <CardTitle className="text-sm">{t("sim_card_title")}</CardTitle>
+          <CardDescription className="text-xs">{t("sim_card_desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={run}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="sim-price">Giá nhà (VND)</FieldLabel>
+                <FieldLabel htmlFor="sim-price">{t("sim_price")}</FieldLabel>
                 <Input
                   id="sim-price"
                   type="number"
@@ -81,11 +84,11 @@ export function ScenarioSimulator({ customerId }: Props) {
                   onChange={(e) => setPrice(e.target.value)}
                   min={0}
                 />
-                <FieldDescription>Ví dụ 2,000,000,000 cho nhà 2 tỷ.</FieldDescription>
+                <FieldDescription>{t("sim_price_hint")}</FieldDescription>
               </Field>
               <div className="grid grid-cols-3 gap-3">
                 <Field>
-                  <FieldLabel htmlFor="sim-down">Tỷ lệ đặt cọc</FieldLabel>
+                  <FieldLabel htmlFor="sim-down">{t("sim_down")}</FieldLabel>
                   <Input
                     id="sim-down"
                     type="number"
@@ -97,7 +100,7 @@ export function ScenarioSimulator({ customerId }: Props) {
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="sim-term">Kỳ (tháng)</FieldLabel>
+                  <FieldLabel htmlFor="sim-term">{t("sim_term")}</FieldLabel>
                   <Input
                     id="sim-term"
                     type="number"
@@ -107,7 +110,7 @@ export function ScenarioSimulator({ customerId }: Props) {
                   />
                 </Field>
                 <Field>
-                  <FieldLabel htmlFor="sim-rate">Lãi (%)</FieldLabel>
+                  <FieldLabel htmlFor="sim-rate">{t("sim_rate")}</FieldLabel>
                   <Input
                     id="sim-rate"
                     type="number"
@@ -123,12 +126,12 @@ export function ScenarioSimulator({ customerId }: Props) {
               {loading ? (
                 <>
                   <Spinner data-icon="inline-start" />
-                  Đang mô phỏng…
+                  {t("sim_running")}
                 </>
               ) : (
                 <>
                   <PlayCircle data-icon="inline-start" />
-                  Chạy mô phỏng
+                  {t("sim_run")}
                 </>
               )}
             </Button>
@@ -138,7 +141,7 @@ export function ScenarioSimulator({ customerId }: Props) {
 
       {error && (
         <Alert variant="destructive">
-          <AlertTitle>Lỗi</AlertTitle>
+          <AlertTitle>{t("sim_error_title")}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -149,6 +152,7 @@ export function ScenarioSimulator({ customerId }: Props) {
 }
 
 function ScenarioResultView({ result }: { result: ScenarioResult }) {
+  const { t } = useT();
   const net = result.monthly_cashflow_after;
   const netNegative = net < 0;
   return (
@@ -160,17 +164,17 @@ function ScenarioResultView({ result }: { result: ScenarioResult }) {
         )}
       >
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm">Kết quả tổng hợp</CardTitle>
+          <CardTitle className="text-sm">{t("sim_result_title")}</CardTitle>
           <CardDescription className="text-xs">{result.combined_summary}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <div className="grid grid-cols-2 gap-2 rounded-lg bg-muted/50 p-3 text-sm">
             <div>
-              <div className="text-[11px] uppercase text-muted-foreground">Trước</div>
+              <div className="text-[11px] uppercase text-muted-foreground">{t("sim_before")}</div>
               <div className="font-semibold">{formatVND(result.monthly_cashflow_before)}</div>
             </div>
             <div>
-              <div className="text-[11px] uppercase text-muted-foreground">Sau</div>
+              <div className="text-[11px] uppercase text-muted-foreground">{t("sim_after")}</div>
               <div className={cn("font-semibold", netNegative && "text-destructive")}>
                 {formatVND(net)}
               </div>
@@ -190,19 +194,17 @@ function ScenarioResultView({ result }: { result: ScenarioResult }) {
 
       <div className="grid grid-cols-2 gap-2">
         {result.entity_impacts.map((imp) => {
-          const meta = ENTITY_META[imp.entity] ?? {
-            icon: Building2,
-            labelVi: imp.entity,
-            colorClass: "text-primary",
-          };
-          const Icon = meta.icon;
+          const meta = ENTITY_META[imp.entity];
+          const Icon = meta?.icon ?? Building2;
+          const label = meta ? t(meta.labelKey) : imp.entity;
+          const colorClass = meta?.colorClass ?? "text-primary";
           return (
             <Card key={imp.entity}>
               <CardContent className="flex flex-col gap-2 p-3">
                 <div className="flex items-center gap-2">
-                  <Icon className={cn("size-4", meta.colorClass)} />
+                  <Icon className={cn("size-4", colorClass)} />
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    {meta.labelVi}
+                    {label}
                   </span>
                 </div>
                 <p className="text-xs leading-snug text-foreground">{imp.summary}</p>

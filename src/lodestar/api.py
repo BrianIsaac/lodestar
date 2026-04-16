@@ -56,6 +56,7 @@ class ChatRequest(BaseModel):
     customer_id: str
     message: str
     insight_context: str = ""
+    language: str = "vi"
 
 
 class DismissRequest(BaseModel):
@@ -93,15 +94,22 @@ async def startup() -> None:
 # --- Insight Feed ---
 
 @app.get("/feed/{customer_id}")
-async def get_insight_feed(customer_id: str, limit: int = 10) -> InsightFeed:
+async def get_insight_feed(
+    customer_id: str,
+    limit: int = 10,
+    language: str = "vi",
+) -> InsightFeed:
     """Ranked insight cards for the customer's feed tab.
 
     Args:
         customer_id: Customer identifier.
         limit: Maximum cards to return.
+        language: Display language — "vi" returns stored text verbatim,
+            "en" or "ko" runs a cached LLM translation over title and
+            summary for each card.
 
     Returns:
-        InsightFeed with ranked cards.
+        InsightFeed with ranked cards (translated if needed).
     """
     db = await get_db()
     try:
@@ -128,10 +136,20 @@ async def get_insight_feed(customer_id: str, limit: int = 10) -> InsightFeed:
             )
             for r in rows
         ]
-
-        return InsightFeed(customer_id=customer_id, cards=cards, total=len(cards))
     finally:
         await db.close()
+
+    if language != "vi" and cards:
+        from lodestar.agents.translate import translate_many
+
+        titles = await translate_many([c.title for c in cards], language)
+        summaries = await translate_many([c.summary for c in cards], language)
+        cards = [
+            c.model_copy(update={"title": titles[i], "summary": summaries[i]})
+            for i, c in enumerate(cards)
+        ]
+
+    return InsightFeed(customer_id=customer_id, cards=cards, total=len(cards))
 
 
 @app.post("/dismiss/{insight_id}")
@@ -178,7 +196,12 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         from lodestar.agents.orchestrator import chat
 
         messages = [ChatMessage(role="user", content=body.message, insight_id=insight_id)]
-        response = await chat(messages, body.customer_id, body.insight_context)
+        response = await chat(
+            messages,
+            body.customer_id,
+            body.insight_context,
+            language=body.language,
+        )
         return response
     except Exception as e:
         logger.exception("Chat error")
@@ -201,7 +224,7 @@ async def chat_general(body: ChatRequest) -> ChatResponse:
         from lodestar.agents.orchestrator import chat
 
         messages = [ChatMessage(role="user", content=body.message)]
-        return await chat(messages, body.customer_id)
+        return await chat(messages, body.customer_id, language=body.language)
     except Exception as e:
         logger.exception("Chat error")
         return ChatResponse(

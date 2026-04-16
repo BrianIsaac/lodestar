@@ -221,10 +221,12 @@ async def chat(
 
         choice = response.choices[0]
         chart_spec = None
+        tool_names: list[str] = []
 
         if choice.message.tool_calls:
             tool_call = choice.message.tool_calls[0]
             tool_name = tool_call.function.name
+            tool_names.append(tool_name)
             tool_args = json.loads(tool_call.function.arguments)
 
             if "customer_id" not in tool_args:
@@ -262,6 +264,7 @@ async def chat(
                 chart_spec=chart_spec,
             ),
             suggested_followups=[],
+            tool_calls=tool_names,
         )
 
     except Exception as e:

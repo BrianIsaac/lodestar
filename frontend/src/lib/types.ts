@@ -36,6 +36,7 @@ export interface ChatMessage {
 export interface ChatResponse {
   message: ChatMessage;
   suggested_followups: string[];
+  tool_calls?: string[];
 }
 
 export interface SavingsGoal {

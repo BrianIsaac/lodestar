@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send } from "lucide-react";
+import { Send, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
@@ -56,7 +56,12 @@ export function DrillDownChat({
 
     try {
       const resp = await sendChat(insightId, customerId, content, initialContext, lang);
-      setMessages((xs) => [...xs, resp.message]);
+      const toolChips: ChatMessage[] = (resp.tool_calls ?? []).map((name) => ({
+        role: "tool",
+        content: name,
+        chart_spec: null,
+      }));
+      setMessages((xs) => [...xs, ...toolChips, resp.message]);
       if (resp.suggested_followups?.length) {
         setFollowups(resp.suggested_followups);
       }
@@ -139,6 +144,8 @@ export function DrillDownChat({
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
+  if (message.role === "tool") return <ToolCallChip message={message} />;
+
   const isUser = message.role === "user";
   return (
     <div
@@ -155,6 +162,22 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           <ChartRenderer spec={message.chart_spec} />
         </div>
       )}
+    </div>
+  );
+}
+
+/** Compact chip rendered when the orchestrator calls a deterministic tool.
+ *  Makes Qwen's native tool-calling loop visible to the audience instead of
+ *  burying it inside a normal-looking assistant bubble. */
+function ToolCallChip({ message }: { message: ChatMessage }) {
+  const { t } = useT();
+  const label = message.content
+    ? t("chat_tool_running", { name: message.content })
+    : t("chat_tool_generic");
+  return (
+    <div className="mr-auto flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-xs text-primary">
+      <Wrench className="size-3.5" />
+      <span className="font-medium">{label}</span>
     </div>
   );
 }

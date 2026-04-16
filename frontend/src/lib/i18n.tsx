@@ -61,6 +61,28 @@ const DICT = {
     en: "Lodestar provides reference information only, not financial advice.",
     ko: "Lodestar는 참고 정보를 제공할 뿐이며 금융 자문이 아닙니다.",
   },
+  stream_status_aria: {
+    vi: "Trạng thái luồng insight",
+    en: "Insight stream status",
+    ko: "인사이트 스트림 상태",
+  },
+  stream_live: { vi: "Đang hoạt động", en: "Live", ko: "라이브" },
+  stream_offline: { vi: "Ngoại tuyến", en: "Offline", ko: "오프라인" },
+
+  // Tool call indicator
+  chat_tool_running: {
+    vi: "Đang gọi công cụ {name}…",
+    en: "Calling tool {name}…",
+    ko: "{name} 도구 호출 중…",
+  },
+  chat_tool_generic: {
+    vi: "Đang sử dụng công cụ",
+    en: "Using a tool",
+    ko: "도구 사용 중",
+  },
+
+  // Qwen badge
+  powered_by: { vi: "Vận hành bởi", en: "Powered by", ko: "제공" },
   card_cta: { vi: "Xem chi tiết", en: "View details", ko: "자세히 보기" },
   dismiss_aria: { vi: "Bỏ qua", en: "Dismiss", ko: "닫기" },
   dismiss_success: {

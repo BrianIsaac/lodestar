@@ -72,3 +72,10 @@ class ChatResponse(BaseModel):
 
     message: ChatMessage
     suggested_followups: list[str] = Field(default_factory=list)
+    tool_calls: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Names of tools invoked by the orchestrator while producing this "
+            "response. Surfaced to the UI so the tool-calling loop is visible."
+        ),
+    )

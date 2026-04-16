@@ -79,7 +79,10 @@ def check_velocity_anomaly(
                 customer_id=customer_id,
                 severity=0.8,
                 context={"category": cat, "current": current_amount, "average": avg},
-                description=f"{cat} spending is {current_amount / avg:.1f}x above average",
+                description=(
+                    f"Chi tiêu cho {cat} đang cao gấp {current_amount / avg:.1f} lần "
+                    f"so với trung bình các tháng trước."
+                ),
             )
 
     return None
@@ -116,7 +119,10 @@ def check_recurring_change(
                 customer_id=customer_id,
                 severity=0.5,
                 context={"merchant": merchant, "recent": recent, "average": avg_prior, "change_pct": change_pct},
-                description=f"{merchant} charge changed by {change_pct:+.0f}%",
+                description=(
+                    f"Giao dịch định kỳ tại {merchant} đã thay đổi "
+                    f"{change_pct:+.0f}% so với mức trung bình."
+                ),
             )
 
     return None
@@ -146,7 +152,7 @@ def check_payday_detected(
                     customer_id=customer_id,
                     severity=0.4,
                     context={"amount": t.amount, "date": str(t.date)},
-                    description=f"Salary of {t.amount:,.0f} VND detected",
+                    description=f"Đã nhận lương {t.amount:,.0f} VND vào tài khoản.",
                 )
 
     return None
@@ -184,7 +190,10 @@ def check_budget_threshold(
             customer_id=customer_id,
             severity=0.7,
             context={"spending": current_spending, "income": monthly_income, "pct": current_spending / monthly_income * 100},
-            description=f"Spending at {current_spending / monthly_income * 100:.0f}% of income",
+            description=(
+                f"Chi tiêu tháng này đang ở mức "
+                f"{current_spending / monthly_income * 100:.0f}% thu nhập."
+            ),
         )
 
     return None
@@ -207,15 +216,24 @@ def check_life_event_pattern(
         if t.amount < 0 and t.merchant:
             recent_merchants.append(t.merchant.lower())
 
+    event_type_vi = {
+        "baby": "chuẩn bị đón em bé",
+        "home_purchase": "mua nhà",
+        "career_change": "chuyển đổi công việc",
+    }
+
     for event_type, keywords in LIFE_EVENT_KEYWORDS.items():
         matches = sum(1 for m in recent_merchants if any(kw in m for kw in keywords))
         if matches >= 2:
+            vi_label = event_type_vi.get(event_type, event_type)
             return TriggerEvent(
                 trigger_type=TriggerType.LIFE_EVENT,
                 customer_id=customer_id,
                 severity=0.9,
                 context={"event_type": event_type, "match_count": matches},
-                description=f"Possible {event_type} detected ({matches} matching transactions)",
+                description=(
+                    f"Phát hiện dấu hiệu {vi_label} qua {matches} giao dịch gần đây."
+                ),
             )
 
     return None

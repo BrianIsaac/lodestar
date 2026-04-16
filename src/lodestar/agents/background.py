@@ -37,6 +37,15 @@ TRIGGER_TO_WORKFLOW: dict[TriggerType, str] = {
     TriggerType.GOAL_MILESTONE: "goal_tracking",
 }
 
+TRIGGER_TO_TITLE_VI: dict[TriggerType, str] = {
+    TriggerType.VELOCITY_ANOMALY: "Chi tiêu bất thường",
+    TriggerType.RECURRING_CHANGE: "Thay đổi định kỳ",
+    TriggerType.PAYDAY_DETECTED: "Đã nhận lương",
+    TriggerType.BUDGET_THRESHOLD: "Vượt ngưỡng ngân sách",
+    TriggerType.GOAL_MILESTONE: "Cột mốc mục tiêu",
+    TriggerType.LIFE_EVENT: "Sự kiện cuộc sống",
+}
+
 
 async def _fetch_recent_transactions(customer_id: str, months: int = 4) -> list[Transaction]:
     """Fetch recent transactions for trigger evaluation.
@@ -84,11 +93,15 @@ def _compose_insight_card(event: TriggerEvent) -> InsightCard:
         InsightCard with compliance-filtered text.
     """
     text, compliance_class = apply_compliance(event.description)
+    title_vi = TRIGGER_TO_TITLE_VI.get(
+        event.trigger_type,
+        event.trigger_type.value.replace("_", " ").title(),
+    )
 
     return InsightCard(
         insight_id=f"INS-{uuid.uuid4().hex[:8]}",
         customer_id=event.customer_id,
-        title=event.trigger_type.value.replace("_", " ").title(),
+        title=title_vi,
         summary=text,
         severity=TRIGGER_TO_SEVERITY.get(event.trigger_type, InsightSeverity.INFO),
         compliance_class=compliance_class,
@@ -127,23 +140,29 @@ async def _store_insight(card: InsightCard) -> None:
         await db.close()
 
 
-async def _is_duplicate(customer_id: str, trigger_type: str) -> bool:
+async def _is_duplicate(customer_id: str, trigger_type: TriggerType) -> bool:
     """Check if a similar insight was already generated recently.
+
+    Dedup on the Vietnamese card title (matching TRIGGER_TO_TITLE_VI) so the
+    check stays consistent with what gets stored.
 
     Args:
         customer_id: Customer identifier.
-        trigger_type: Trigger type string.
+        trigger_type: Trigger type enum.
 
     Returns:
         True if a similar insight exists from the last 24 hours.
     """
+    title = TRIGGER_TO_TITLE_VI.get(
+        trigger_type, trigger_type.value.replace("_", " ").title()
+    )
     db = await get_db()
     try:
         yesterday = (date.today() - timedelta(days=1)).isoformat()
         cursor = await db.execute(
             """SELECT COUNT(*) FROM insight_cards
                WHERE customer_id = ? AND title = ? AND created_at >= ? AND dismissed = 0""",
-            (customer_id, trigger_type.replace("_", " ").title(), yesterday),
+            (customer_id, title, yesterday),
         )
         row = await cursor.fetchone()
         return row[0] > 0

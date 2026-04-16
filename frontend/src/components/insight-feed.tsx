@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Radio, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/empty";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { InsightCard } from "@/components/insight-card";
+import { cn } from "@/lib/utils";
 import { dismissInsight, fetchFeed } from "@/lib/api";
 import { useT } from "@/lib/i18n";
+import { useInsightStream } from "@/lib/use-sse";
 import type { InsightCard as InsightCardType } from "@/lib/types";
 
 interface Props {
@@ -27,14 +29,23 @@ type FeedState =
 
 export function InsightFeed({ customerId }: Props) {
   const [state, setState] = useState<FeedState>({ status: "loading" });
-  const cards = state.status === "ready" ? state.cards : [];
-  const loading = state.status === "loading";
   const { lang, t } = useT();
+  const stream = useInsightStream(customerId);
+
+  const loading = state.status === "loading";
+
+  // Merge REST cards (authoritative for language + chart_spec) with live
+  // SSE arrivals not already in the REST set. Live cards are prepended so
+  // new arrivals appear at the top of the feed.
+  const cards = useMemo<InsightCardType[]>(() => {
+    if (state.status !== "ready") return [];
+    const restIds = new Set(state.cards.map((c) => c.insight_id));
+    const liveExtras = stream.cards.filter((c) => !restIds.has(c.insight_id));
+    return [...liveExtras, ...state.cards];
+  }, [state, stream.cards]);
 
   useEffect(() => {
     let cancelled = false;
-    // Reset to loading when customerId or language changes so the user sees
-    // skeletons while the backend re-translates the feed.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setState({ status: "loading" });
     fetchFeed(customerId, lang)
@@ -92,13 +103,39 @@ export function InsightFeed({ customerId }: Props) {
 
   return (
     <div className="flex flex-col gap-3">
-      <Alert>
+      <Alert className="relative">
         <Sparkles />
         <AlertDescription>{t("compliance_banner")}</AlertDescription>
+        <StreamStatusBadge status={stream.status} />
       </Alert>
       {cards.map((card) => (
         <InsightCard key={card.insight_id} card={card} onDismiss={handleDismiss} />
       ))}
     </div>
+  );
+}
+
+function StreamStatusBadge({ status }: { status: "connecting" | "live" | "closed" }) {
+  const { t } = useT();
+  const active = status === "live";
+  return (
+    <span
+      className={cn(
+        "absolute right-3 top-3 flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        active
+          ? "bg-primary/10 text-primary"
+          : "bg-muted text-muted-foreground"
+      )}
+      aria-label={t("stream_status_aria")}
+    >
+      <span
+        className={cn(
+          "inline-block size-1.5 rounded-full",
+          active ? "bg-primary animate-pulse" : "bg-muted-foreground"
+        )}
+      />
+      {active ? t("stream_live") : t("stream_offline")}
+      <Radio className="size-2.5" />
+    </span>
   );
 }

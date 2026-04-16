@@ -40,8 +40,24 @@ export function AppShell({ children, customerInitials = "KH" }: Props) {
             </Avatar>
           </div>
         </div>
+        <PoweredByQwen label={t("powered_by")} />
       </header>
       <main className="mx-auto max-w-md px-4 pt-4 pb-24">{children}</main>
+    </div>
+  );
+}
+
+function PoweredByQwen({ label }: { label: string }) {
+  return (
+    <div className="mx-auto flex max-w-md items-center justify-center gap-1.5 border-t border-border/40 bg-background/60 px-4 py-1 text-[10px] text-muted-foreground">
+      <span className="flex size-3 items-center justify-center rounded-sm bg-primary/10 font-bold text-primary">
+        Q
+      </span>
+      <span>
+        {label}{" "}
+        <span className="font-semibold text-foreground">Qwen</span>{" "}
+        <span className="text-muted-foreground/70">· Alibaba Cloud</span>
+      </span>
     </div>
   );
 }

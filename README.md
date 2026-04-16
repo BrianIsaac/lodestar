@@ -4,7 +4,7 @@
 
 The name reflects the product's role: a guiding star for customers navigating their financial lives — surfacing the right signals at the right time without ever telling them what to do.
 
-Runs fully on-premise using **Qwen3** via Ollama, with a proactive insight feed, cross-entity financial simulation across all four Shinhan entities (Bank, Finance, Securities, Life), a per-customer learning loop, and a Vietnamese-language first experience.
+Runs on **Qwen** (Alibaba DashScope in production, local Ollama for development), with a proactive insight feed, cross-entity financial simulation across all four Shinhan entities (Bank, Finance, Securities, Life), a per-customer learning loop, and a Vietnamese-language first experience.
 
 ## What It Is
 
@@ -22,11 +22,13 @@ Key innovations:
 
 ## Stack
 
-**Backend:** Python 3.11+, FastAPI, LangGraph, Qwen-Agent, Qdrant, SQLite, bge-m3 via sentence-transformers, underthesea (Vietnamese NLP), SDV + Faker (synthetic data)
+**Backend:** Python 3.11+, FastAPI, LangGraph, Qwen-Agent, Qdrant, SQLite, bge-m3 via sentence-transformers, underthesea (Vietnamese NLP), SDV + Faker (synthetic data).
 
-**LLM:** Qwen3:14b via Ollama at `localhost:11434` (production target: Qwen3-8B Q4_K_M via llama.cpp on 12GB GPU)
+**LLM:** Qwen via Alibaba DashScope (`qwen-plus`) in production, or local Ollama (`qwen3:14b`) for development. Both speak the OpenAI-compatible API so swapping providers is a one-line env change.
 
-**Frontend:** Next.js 15 + shadcn/ui + Recharts, deployed on Vercel. Shinhan Blue (#0046FF) OKLCH theming.
+**Frontend:** Next.js 15 + shadcn/ui + Recharts. Shinhan Blue (#0046FF) OKLCH theming.
+
+**Deployment:** Alibaba Cloud ECS (Ubuntu 22.04) via Docker Compose — see [DEPLOY.md](DEPLOY.md).
 
 ## Quick Start
 
@@ -41,7 +43,9 @@ uv run python -m lodestar.data.seed_data
 # 3. Run tests
 uv run pytest
 
-# 4. Start backend (requires Ollama with qwen3:14b pulled)
+# 4. Start backend
+# Needs an LLM — either local Ollama (qwen3:14b) or a DashScope key in .env.
+# See .env.example for both configurations.
 CUDA_VISIBLE_DEVICES="" uv run uvicorn lodestar.api:app --port 8000
 
 # 5. Start frontend
@@ -73,9 +77,22 @@ lodestar/
 │   └── nlp/                       # Vietnamese NLP helpers
 ├── frontend/                      # Next.js + shadcn/ui + Recharts
 ├── tests/                         # 80+ tests across all modules
+├── Dockerfile                     # Multi-stage backend + frontend image
+├── docker-compose.yml             # ECS deployment orchestration
+├── .env.example                   # LLM / API config template
 ├── pyproject.toml
+├── DEPLOY.md                      # Alibaba Cloud ECS deployment guide
 └── LICENSE                        # Apache 2.0
 ```
+
+## Deployment
+
+Live demo on Alibaba Cloud ECS:
+
+- Frontend: <http://43.98.179.20:3000>
+- Backend API: <http://43.98.179.20:8000>
+
+See [DEPLOY.md](DEPLOY.md) for the full setup, DashScope configuration, and update workflow.
 
 ## License
 

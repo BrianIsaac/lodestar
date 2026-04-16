@@ -20,7 +20,7 @@ class SpendingState(TypedDict):
     summary: SpendingSummary | None
     anomalies: list
     chart_spec: ChartSpec | None
-    insight_text: str
+    insight_text: dict[str, str]
 
 
 async def fetch_and_summarise(state: SpendingState) -> dict:
@@ -44,26 +44,47 @@ def build_chart(state: SpendingState) -> dict:
     return {"chart_spec": chart}
 
 
+_SPENDING_COPY: dict[str, dict[str, str]] = {
+    "no_data": {
+        "vi": "Không có dữ liệu chi tiêu cho kỳ này.",
+        "en": "No spending data for this period.",
+        "ko": "이 기간의 지출 데이터가 없습니다.",
+    },
+    "total": {
+        "vi": "Tổng chi tiêu tháng {period}: {total:,.0f} VND",
+        "en": "Total spending in {period}: {total:,.0f} VND",
+        "ko": "{period} 총 지출: {total:,.0f} VND",
+    },
+}
+
+
 def compose_insight(state: SpendingState) -> dict:
-    """Compose human-readable insight text from tool results."""
+    """Compose human-readable insight text from tool results in every
+    supported language. Each compose output is a
+    {'vi': str, 'en': str, 'ko': str} dict so the orchestrator /
+    feed endpoint can pick a language with zero runtime translation."""
     summary = state["summary"]
     anomalies = state.get("anomalies", [])
 
     if not summary or summary.total == 0:
-        return {"insight_text": "Không có dữ liệu chi tiêu cho kỳ này."}
+        return {"insight_text": dict(_SPENDING_COPY["no_data"])}
 
     top_cats = sorted(summary.by_category.items(), key=lambda x: -x[1])[:3]
-    lines = [f"Tổng chi tiêu tháng {summary.period}: {summary.total:,.0f} VND"]
-    for cat, amount in top_cats:
-        pct = summary.by_category_pct.get(cat, 0)
-        lines.append(f"  - {cat}: {amount:,.0f} VND ({pct}%)")
+    out: dict[str, str] = {}
+    for lang in ("vi", "en", "ko"):
+        lines = [
+            _SPENDING_COPY["total"][lang].format(period=summary.period, total=summary.total)
+        ]
+        for cat, amount in top_cats:
+            pct = summary.by_category_pct.get(cat, 0)
+            lines.append(f"  - {cat}: {amount:,.0f} VND ({pct}%)")
+        if anomalies:
+            lines.append("")
+            for a in anomalies:
+                lines.append(f"  ⚠ {a.description}")
+        out[lang] = "\n".join(lines)
 
-    if anomalies:
-        lines.append("")
-        for a in anomalies:
-            lines.append(f"  ⚠ {a.description}")
-
-    return {"insight_text": "\n".join(lines)}
+    return {"insight_text": out}
 
 
 def build_spending_graph() -> StateGraph:

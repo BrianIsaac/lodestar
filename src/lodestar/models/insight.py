@@ -35,12 +35,21 @@ class ChartSpec(BaseModel):
 
 
 class InsightCard(BaseModel):
-    """A single proactive insight displayed on the feed."""
+    """A single proactive insight displayed on the feed.
+
+    `title` and `summary` hold the canonical Vietnamese text for backwards
+    compat; `title_i18n` and `summary_i18n` carry the same content in all
+    supported locales. The frontend prefers the i18n dict when present so
+    toggling language is a pure client-side lookup — zero runtime LLM
+    calls, zero network translation.
+    """
 
     insight_id: str
     customer_id: str
     title: str
     summary: str
+    title_i18n: dict[str, str] | None = None
+    summary_i18n: dict[str, str] | None = None
     severity: InsightSeverity = InsightSeverity.INFO
     chart_spec: ChartSpec | None = None
     suggested_actions: list[str] = Field(default_factory=list)
@@ -65,6 +74,14 @@ class ChatMessage(BaseModel):
     content: str = ""
     chart_spec: ChartSpec | None = None
     insight_id: str | None = None
+
+
+class InsightCardI18n(BaseModel):
+    """Parallel structure carrying title/summary in every supported locale."""
+
+    vi: str = ""
+    en: str = ""
+    ko: str = ""
 
 
 class ChatResponse(BaseModel):

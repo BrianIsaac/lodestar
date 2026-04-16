@@ -13,6 +13,8 @@ export interface InsightCard {
   customer_id: string;
   title: string;
   summary: string;
+  title_i18n?: Record<string, string> | null;
+  summary_i18n?: Record<string, string> | null;
   severity: "life_event" | "anomaly" | "milestone" | "info" | "product";
   chart_spec?: ChartSpec | null;
   suggested_actions: string[];
@@ -64,13 +66,18 @@ export interface ScenarioResult {
   risk_flags: string[];
 }
 
+export type Language = "vi" | "en" | "ko";
+
 export interface ProductInfo {
   product_id: string;
   entity: string;
   product_type: string;
   name_vi: string;
   name_en: string;
+  name_ko?: string;
   description_vi: string;
+  description_en?: string;
+  description_ko?: string;
   interest_rate: number | null;
   min_income: number | null;
 }

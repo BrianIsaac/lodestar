@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS insight_cards (
     customer_id TEXT NOT NULL REFERENCES customers(customer_id),
     title TEXT NOT NULL,
     summary TEXT,
+    title_i18n TEXT,        -- JSON {"vi":"...","en":"...","ko":"..."}
+    summary_i18n TEXT,      -- JSON {"vi":"...","en":"...","ko":"..."}
     severity TEXT DEFAULT 'info',
     chart_spec TEXT,
     suggested_actions TEXT DEFAULT '[]',
@@ -138,10 +140,21 @@ async def get_db() -> aiosqlite.Connection:
 
 
 async def init_db() -> None:
-    """Create all tables if they do not exist."""
+    """Create all tables if they do not exist, then run idempotent
+    column-level migrations for databases created before multilingual
+    support was added."""
     db = await get_db()
     try:
         await db.executescript(SCHEMA)
+        for stmt in (
+            "ALTER TABLE insight_cards ADD COLUMN title_i18n TEXT",
+            "ALTER TABLE insight_cards ADD COLUMN summary_i18n TEXT",
+        ):
+            try:
+                await db.execute(stmt)
+            except Exception:
+                # Column already exists — SQLite raises OperationalError.
+                pass
         await db.commit()
     finally:
         await db.close()

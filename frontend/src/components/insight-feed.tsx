@@ -29,7 +29,7 @@ type FeedState =
 
 export function InsightFeed({ customerId }: Props) {
   const [state, setState] = useState<FeedState>({ status: "loading" });
-  const { lang, t } = useT();
+  const { t } = useT();
   const stream = useInsightStream(customerId);
 
   const loading = state.status === "loading";
@@ -46,9 +46,9 @@ export function InsightFeed({ customerId }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setState({ status: "loading" });
-    fetchFeed(customerId, lang)
+    // Cards carry title_i18n/summary_i18n, so language toggles are pure
+    // client-side renders — no refetch needed when lang changes.
+    fetchFeed(customerId)
       .then((feed) => {
         if (!cancelled) setState({ status: "ready", cards: feed.cards });
       })
@@ -58,7 +58,7 @@ export function InsightFeed({ customerId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [customerId, lang]);
+  }, [customerId]);
 
   const handleDismiss = useCallback(
     (insightId: string) => {

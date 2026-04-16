@@ -27,15 +27,13 @@ export default function InsightPage({
   const { id } = use(params);
   const [card, setCard] = useState<InsightCardType | null>(null);
   const [loading, setLoading] = useState(true);
-  const { lang, t } = useT();
+  const { t } = useT();
 
   useEffect(() => {
     let cancelled = false;
-    // Reset loading when language changes so the insight context card shows
-    // a skeleton while the backend re-translates.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLoading(true);
-    fetchFeed(CUSTOMER_ID, lang)
+    // Card carries title_i18n/summary_i18n — language changes are handled
+    // purely client-side by InsightContext.
+    fetchFeed(CUSTOMER_ID)
       .then((feed) => {
         if (cancelled) return;
         setCard(feed.cards.find((c) => c.insight_id === id) ?? null);
@@ -49,7 +47,7 @@ export default function InsightPage({
     return () => {
       cancelled = true;
     };
-  }, [id, lang]);
+  }, [id]);
 
   return (
     <AppShell customerInitials={CUSTOMER_INITIALS}>
@@ -88,7 +86,9 @@ export default function InsightPage({
 function InsightContext({ card }: { card: InsightCardType }) {
   const meta = getSeverityMeta(card.severity);
   const Icon = meta.icon;
-  const { t } = useT();
+  const { lang, t } = useT();
+  const title = card.title_i18n?.[lang] ?? card.title;
+  const summary = card.summary_i18n?.[lang] ?? card.summary;
   return (
     <Card className={cn("overflow-hidden border-l-4 p-0", meta.borderClass)}>
       <CardContent className="flex flex-col gap-3 p-4">
@@ -105,8 +105,8 @@ function InsightContext({ card }: { card: InsightCardType }) {
             <Badge variant={meta.badgeVariant} className="self-start">
               {t(meta.labelKey)}
             </Badge>
-            <h1 className="text-base font-semibold leading-tight">{card.title}</h1>
-            <p className="text-sm text-muted-foreground">{card.summary}</p>
+            <h1 className="text-base font-semibold leading-tight">{title}</h1>
+            <p className="text-sm text-muted-foreground">{summary}</p>
           </div>
         </div>
 

@@ -90,15 +90,6 @@ async def startup() -> None:
     cards = await run_background_cycle()
     logger.info("Initial background cycle: %d insight cards", len(cards))
 
-    # Fire-and-forget: translate current feed titles + summaries into En and
-    # Ko so the first user who toggles language after boot sees an instant
-    # cached feed instead of paying the LLM round-trip per card.
-    if cards:
-        from lodestar.agents.translate import warm_cache_for_cards
-        pairs = [(c.title, c.summary) for c in cards]
-        asyncio.create_task(warm_cache_for_cards(pairs))
-        logger.info("Translation warm-up queued for %d cards", len(cards))
-
 
 # --- Insight Feed ---
 
@@ -110,16 +101,22 @@ async def get_insight_feed(
 ) -> InsightFeed:
     """Ranked insight cards for the customer's feed tab.
 
+    Cards are pre-localised at write time (see background.py templates).
+    This endpoint just reads the stored JSON and promotes the requested
+    language into the flat `title` / `summary` fields — no LLM calls,
+    no cache layer needed.
+
     Args:
         customer_id: Customer identifier.
         limit: Maximum cards to return.
-        language: Display language — "vi" returns stored text verbatim,
-            "en" or "ko" runs a cached LLM translation over title and
-            summary for each card.
+        language: Display language code (vi | en | ko). Falls back to
+            Vietnamese if an unknown code arrives.
 
     Returns:
-        InsightFeed with ranked cards (translated if needed).
+        InsightFeed with ranked cards.
     """
+    lang = language if language in {"vi", "en", "ko"} else "vi"
+
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -131,34 +128,43 @@ async def get_insight_feed(
         )
         rows = await cursor.fetchall()
 
-        cards = [
-            InsightCard(
-                insight_id=r["insight_id"],
-                customer_id=r["customer_id"],
-                title=r["title"],
-                summary=r["summary"],
-                severity=r["severity"],
-                compliance_class=r["compliance_class"],
-                priority_score=r["priority_score"],
-                dismissed=bool(r["dismissed"]),
-                suggested_actions=json.loads(r["suggested_actions"] or "[]"),
+        cards: list[InsightCard] = []
+        for r in rows:
+            title_i18n = _load_json_dict(r["title_i18n"] if "title_i18n" in r.keys() else None)
+            summary_i18n = _load_json_dict(r["summary_i18n"] if "summary_i18n" in r.keys() else None)
+            title = (title_i18n or {}).get(lang) or r["title"]
+            summary = (summary_i18n or {}).get(lang) or r["summary"]
+            cards.append(
+                InsightCard(
+                    insight_id=r["insight_id"],
+                    customer_id=r["customer_id"],
+                    title=title,
+                    summary=summary,
+                    title_i18n=title_i18n,
+                    summary_i18n=summary_i18n,
+                    severity=r["severity"],
+                    compliance_class=r["compliance_class"],
+                    priority_score=r["priority_score"],
+                    dismissed=bool(r["dismissed"]),
+                    suggested_actions=json.loads(r["suggested_actions"] or "[]"),
+                )
             )
-            for r in rows
-        ]
     finally:
         await db.close()
 
-    if language != "vi" and cards:
-        from lodestar.agents.translate import translate_many
-
-        titles = await translate_many([c.title for c in cards], language)
-        summaries = await translate_many([c.summary for c in cards], language)
-        cards = [
-            c.model_copy(update={"title": titles[i], "summary": summaries[i]})
-            for i, c in enumerate(cards)
-        ]
-
     return InsightFeed(customer_id=customer_id, cards=cards, total=len(cards))
+
+
+def _load_json_dict(raw: str | None) -> dict[str, str] | None:
+    """Parse a JSON string column into a dict, returning None on empty/bad
+    input. Used when reading the i18n columns off insight_cards rows."""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
 
 
 @app.post("/dismiss/{insight_id}")
@@ -340,49 +346,24 @@ async def search_products(
 ) -> list[ProductInfo]:
     """RAG-powered product search with optional eligibility filtering.
 
+    All name/description variants are authored upfront in the catalogue,
+    so this endpoint returns the full ProductInfo unchanged and lets the
+    client pick the right field by `language`. `language` is accepted
+    for future server-side filtering but does not trigger translation.
+
     Args:
-        query: Search query (Vietnamese or English — bge-m3 is multilingual).
+        query: Search query (Vietnamese, English, or Korean — bge-m3 is
+            multilingual).
         customer_id: Optional customer for eligibility check.
-        language: Display language. Vietnamese returns stored fields
-            verbatim. For English, the catalogue already carries `name_en`
-            on every product, so names are free. For Korean — and for
-            descriptions in any non-Vi locale — text is fed through the
-            two-tier translation cache so repeat searches are instant.
+        language: Client locale hint (vi | en | ko). Informational only.
 
     Returns:
-        Ranked product list, localised to the requested language.
+        Ranked product list with all language fields populated.
     """
+    _ = language  # reserved for future server-side localisation
     from lodestar.tools.products import search_products as _search
-    from lodestar.agents.translate import translate_many
 
-    products = await _search(query)
-
-    if language == "vi" or not products:
-        return products
-
-    # Vietnamese descriptions → target language (always translated since
-    # the catalogue has only Vietnamese descriptions).
-    descriptions_vi = [p.description_vi or "" for p in products]
-    descriptions_out = await translate_many(descriptions_vi, language)
-
-    # Names: Korean has no catalogue field, so translate from Vietnamese.
-    # English already has name_en on every product — use it directly.
-    if language == "ko":
-        names_out = await translate_many([p.name_vi for p in products], language)
-    else:
-        names_out = [p.name_en or p.name_vi for p in products]
-
-    out: list[ProductInfo] = []
-    for p, new_name, new_desc in zip(products, names_out, descriptions_out):
-        out.append(
-            p.model_copy(
-                update={
-                    "name_vi": new_name,
-                    "description_vi": new_desc,
-                }
-            )
-        )
-    return out
+    return await _search(query)
 
 
 # --- SSE Insight Stream ---

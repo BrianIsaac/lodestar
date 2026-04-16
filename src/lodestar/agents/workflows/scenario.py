@@ -16,7 +16,7 @@ class ScenarioState(TypedDict):
     parameters: dict
     result: ScenarioResult | None
     chart_spec: ChartSpec | None
-    insight_text: str
+    insight_text: dict[str, str]
 
 
 async def run_simulation(state: ScenarioState) -> dict:
@@ -54,28 +54,71 @@ def build_chart(state: ScenarioState) -> dict:
     return {"chart_spec": chart}
 
 
-def compose_insight(state: ScenarioState) -> dict:
-    """Compose human-readable scenario insight."""
+_SCENARIO_COPY: dict[str, dict[str, str]] = {
+    "no_result": {
+        "vi": "Không thể mô phỏng kịch bản này.",
+        "en": "This scenario could not be simulated.",
+        "ko": "이 시나리오는 시뮬레이션할 수 없습니다.",
+    },
+    "scenario": {
+        "vi": "Kịch bản: {t}",
+        "en": "Scenario: {t}",
+        "ko": "시나리오: {t}",
+    },
+    "cashflow": {
+        "vi": "Dòng tiền hàng tháng: {b:,.0f} → {a:,.0f} VND",
+        "en": "Monthly cashflow: {b:,.0f} → {a:,.0f} VND",
+        "ko": "월 현금흐름: {b:,.0f} → {a:,.0f} VND",
+    },
+    "risk_header": {
+        "vi": "Cảnh báo rủi ro:",
+        "en": "Risk flags:",
+        "ko": "위험 경고:",
+    },
+}
+
+
+async def compose_insight(state: ScenarioState) -> dict:
+    """Compose human-readable scenario insight in every supported language.
+
+    Runs the deterministic simulation tool once per language (no LLM, no
+    DB writes) and renders the narrative using locale-specific headers.
+    The tool itself already authors entity summaries + risk flags in all
+    three locales (see tools/simulation.py)."""
+    import asyncio
+
+    from lodestar.tools.simulation import simulate_scenario
+
     result = state.get("result")
     if not result:
-        return {"insight_text": "Không thể mô phỏng kịch bản này."}
+        return {"insight_text": dict(_SCENARIO_COPY["no_result"])}
 
-    lines = [
-        f"Kịch bản: {result.scenario_type}",
-        f"Dòng tiền hàng tháng: {result.monthly_cashflow_before:,.0f} → {result.monthly_cashflow_after:,.0f} VND",
-        "",
-    ]
+    async def _per_lang(lang: str) -> str:
+        localised = await simulate_scenario(
+            customer_id=state["customer_id"],
+            scenario_type=state["scenario_type"],
+            parameters=state.get("parameters", {}),
+            language=lang,
+        )
+        lines = [
+            _SCENARIO_COPY["scenario"][lang].format(t=localised.scenario_type),
+            _SCENARIO_COPY["cashflow"][lang].format(
+                b=localised.monthly_cashflow_before,
+                a=localised.monthly_cashflow_after,
+            ),
+            "",
+        ]
+        for impact in localised.entity_impacts:
+            lines.append(f"[{impact.entity.upper()}] {impact.summary}")
+        if localised.risk_flags:
+            lines.append("")
+            lines.append(_SCENARIO_COPY["risk_header"][lang])
+            for flag in localised.risk_flags:
+                lines.append(f"  ⚠ {flag}")
+        return "\n".join(lines)
 
-    for impact in result.entity_impacts:
-        lines.append(f"[{impact.entity.upper()}] {impact.summary}")
-
-    if result.risk_flags:
-        lines.append("")
-        lines.append("Cảnh báo rủi ro:")
-        for flag in result.risk_flags:
-            lines.append(f"  ⚠ {flag}")
-
-    return {"insight_text": "\n".join(lines)}
+    rendered = await asyncio.gather(*[_per_lang(lang) for lang in ("vi", "en", "ko")])
+    return {"insight_text": {"vi": rendered[0], "en": rendered[1], "ko": rendered[2]}}
 
 
 def build_scenario_graph() -> StateGraph:

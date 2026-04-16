@@ -122,33 +122,41 @@ TOOL_DEFINITIONS = [
 ]
 
 
+def _pick_text(text_or_dict: object, language: str) -> str:
+    """Resolve a workflow's `insight_text` output to a single string.
+
+    Each compose_* node now returns a {vi, en, ko} dict so every language
+    is pre-rendered. Fall through to Vietnamese for unknown locales and
+    gracefully handle legacy str outputs just in case."""
+    if isinstance(text_or_dict, dict):
+        return text_or_dict.get(language) or text_or_dict.get("vi") or ""
+    return str(text_or_dict or "")
+
+
 async def _execute_tool(name: str, arguments: dict, language: str = "vi") -> str:
-    """Execute a workflow tool and return the result as a string.
+    """Execute a workflow tool and return the result as a JSON string.
+
+    Workflow compose_* nodes author `insight_text` as a per-language dict,
+    so this function picks the requested locale with zero LLM calls — no
+    translation, no cache warmup, no round-trips.
 
     Args:
         name: Tool name.
         arguments: Tool arguments from the LLM.
-        language: Target display language. Workflow `insight_text` output is
-            produced in Vietnamese by the subgraph nodes; if the requested
-            language is anything else, it is fed through the two-tier
-            translation cache before being returned to the orchestrator.
-            This avoids the LLM re-translating identical text every turn.
+        language: Requested response locale (vi | en | ko).
 
     Returns:
-        JSON string of tool results.
+        JSON string of tool results (serialised for the LLM's tool turn).
     """
-    from lodestar.agents.translate import translate_text
-
     if name == "spending_analysis":
         from lodestar.agents.workflows.spending import spending_graph
         result = await spending_graph.ainvoke({
             "customer_id": arguments["customer_id"],
             "period": arguments["period"],
-            "summary": None, "anomalies": [], "chart_spec": None, "insight_text": "",
+            "summary": None, "anomalies": [], "chart_spec": None, "insight_text": {},
         })
-        insight_text = await translate_text(result["insight_text"], language)
         return json.dumps({
-            "insight_text": insight_text,
+            "insight_text": _pick_text(result["insight_text"], language),
             "chart_spec": result["chart_spec"].model_dump() if result["chart_spec"] else None,
         }, ensure_ascii=False)
 
@@ -157,10 +165,12 @@ async def _execute_tool(name: str, arguments: dict, language: str = "vi") -> str
         result = await product_match_graph.ainvoke({
             "query": arguments["query"],
             "customer_id": arguments.get("customer_id"),
-            "results": [], "eligibility_checked": [], "insight_text": "",
+            "results": [], "eligibility_checked": [], "insight_text": {},
         })
-        insight_text = await translate_text(result["insight_text"], language)
-        return json.dumps({"insight_text": insight_text}, ensure_ascii=False)
+        return json.dumps(
+            {"insight_text": _pick_text(result["insight_text"], language)},
+            ensure_ascii=False,
+        )
 
     elif name == "scenario_simulation":
         from lodestar.agents.workflows.scenario import scenario_graph
@@ -168,11 +178,10 @@ async def _execute_tool(name: str, arguments: dict, language: str = "vi") -> str
             "customer_id": arguments["customer_id"],
             "scenario_type": arguments["scenario_type"],
             "parameters": arguments.get("parameters", {}),
-            "result": None, "chart_spec": None, "insight_text": "",
+            "result": None, "chart_spec": None, "insight_text": {},
         })
-        insight_text = await translate_text(result["insight_text"], language)
         return json.dumps({
-            "insight_text": insight_text,
+            "insight_text": _pick_text(result["insight_text"], language),
             "chart_spec": result["chart_spec"].model_dump() if result["chart_spec"] else None,
         }, ensure_ascii=False)
 

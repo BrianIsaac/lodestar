@@ -14,7 +14,7 @@ class ProductMatchState(TypedDict):
     customer_id: str | None
     results: list[ProductInfo]
     eligibility_checked: list[dict]
-    insight_text: str
+    insight_text: dict[str, str]
 
 
 async def search(state: ProductMatchState) -> dict:
@@ -48,34 +48,74 @@ async def check_eligibility(state: ProductMatchState) -> dict:
     return {"eligibility_checked": checked}
 
 
+_PRODUCT_COPY: dict[str, dict[str, str]] = {
+    "none": {
+        "vi": "Không tìm thấy sản phẩm phù hợp.",
+        "en": "No matching products found.",
+        "ko": "적합한 상품을 찾지 못했습니다.",
+    },
+    "found": {
+        "vi": "Tìm thấy {n} sản phẩm phù hợp:",
+        "en": "Found {n} matching products:",
+        "ko": "{n}개의 적합한 상품을 찾았습니다:",
+    },
+    "rate": {
+        "vi": "lãi suất {r}%",
+        "en": "{r}% rate",
+        "ko": "금리 {r}%",
+    },
+    "eligible": {
+        "vi": "✓ đủ điều kiện",
+        "en": "✓ eligible",
+        "ko": "✓ 자격 충족",
+    },
+    "disclaimer": {
+        "vi": "Đây là thông tin sản phẩm, không phải tư vấn tài chính.",
+        "en": "This is product information, not financial advice.",
+        "ko": "상품 정보이며 금융 자문이 아닙니다.",
+    },
+}
+
+
+def _pick_name(product: ProductInfo, lang: str) -> str:
+    if lang == "ko":
+        return getattr(product, "name_ko", "") or product.name_vi
+    if lang == "en":
+        return product.name_en or product.name_vi
+    return product.name_vi
+
+
 def compose_response(state: ProductMatchState) -> dict:
-    """Compose product information response."""
+    """Compose product information response in every supported language."""
     results = state.get("results", [])
     eligibility = state.get("eligibility_checked", [])
 
     if not results:
-        return {"insight_text": "Không tìm thấy sản phẩm phù hợp."}
+        return {"insight_text": dict(_PRODUCT_COPY["none"])}
 
     elig_map = {e["product_id"]: e for e in eligibility}
-    lines = [f"Tìm thấy {len(results)} sản phẩm phù hợp:"]
+    out: dict[str, str] = {}
+    for lang in ("vi", "en", "ko"):
+        lines = [_PRODUCT_COPY["found"][lang].format(n=len(results))]
+        for i, p in enumerate(results, 1):
+            rate_str = (
+                _PRODUCT_COPY["rate"][lang].format(r=p.interest_rate)
+                if p.interest_rate is not None
+                else ""
+            )
+            line = f"  {i}. {_pick_name(p, lang)} ({p.entity}) {rate_str}".rstrip()
+            elig = elig_map.get(p.product_id)
+            if elig:
+                if elig["eligible"]:
+                    line += f" {_PRODUCT_COPY['eligible'][lang]}"
+                else:
+                    line += f" ✗ {', '.join(elig['reasons'])}"
+            lines.append(line)
+        lines.append("")
+        lines.append(_PRODUCT_COPY["disclaimer"][lang])
+        out[lang] = "\n".join(lines)
 
-    for i, p in enumerate(results, 1):
-        rate_str = f"lãi suất {p.interest_rate}%" if p.interest_rate is not None else ""
-        line = f"  {i}. {p.name_vi} ({p.entity}) {rate_str}"
-
-        elig = elig_map.get(p.product_id)
-        if elig:
-            if elig["eligible"]:
-                line += " ✓ đủ điều kiện"
-            else:
-                line += f" ✗ {', '.join(elig['reasons'])}"
-
-        lines.append(line)
-
-    lines.append("")
-    lines.append("Đây là thông tin sản phẩm, không phải tư vấn tài chính.")
-
-    return {"insight_text": "\n".join(lines)}
+    return {"insight_text": out}
 
 
 def build_product_match_graph() -> StateGraph:

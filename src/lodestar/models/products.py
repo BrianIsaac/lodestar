@@ -4,15 +4,21 @@ from pydantic import BaseModel, Field
 
 
 class ProductInfo(BaseModel):
-    """A single Shinhan financial product."""
+    """A single Shinhan financial product.
+
+    All name/description variants are authored upfront in the catalogue JSON
+    so the API can return the correct language without runtime translation.
+    """
 
     product_id: str
     entity: str = Field(description="bank | finance | securities | life")
     product_type: str = Field(description="credit_card | savings | loan | insurance | investment | etc.")
     name_vi: str = ""
     name_en: str = ""
+    name_ko: str = ""
     description_vi: str = ""
     description_en: str = ""
+    description_ko: str = ""
     interest_rate: float | None = None
     min_income: float | None = None
     currency: str = "VND"

@@ -113,17 +113,30 @@ export function ProductSearch() {
 
       <div className="flex flex-col gap-2">
         {results.map((p) => {
-          // Backend has already localised name_vi/description_vi in place
-          // for the requested language — render those fields directly.
+          // Catalogue carries all three locales; pick the right field per
+          // UI language with a Vi fallback if a product hasn't been
+          // translated yet.
+          const name =
+            lang === "ko"
+              ? p.name_ko || p.name_vi
+              : lang === "en"
+                ? p.name_en || p.name_vi
+                : p.name_vi;
+          const description =
+            lang === "ko"
+              ? p.description_ko || p.description_vi
+              : lang === "en"
+                ? p.description_en || p.description_vi
+                : p.description_vi;
           const entityKey = ENTITY_LABEL_KEY[p.entity];
           return (
             <Card key={p.product_id}>
               <CardContent className="flex flex-col gap-2 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex min-w-0 flex-col">
-                    <span className="text-sm font-semibold leading-tight">{p.name_vi}</span>
-                    {p.description_vi && (
-                      <span className="text-xs text-muted-foreground">{p.description_vi}</span>
+                    <span className="text-sm font-semibold leading-tight">{name}</span>
+                    {description && (
+                      <span className="text-xs text-muted-foreground">{description}</span>
                     )}
                   </div>
                   {p.interest_rate != null && (

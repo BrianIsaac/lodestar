@@ -19,7 +19,9 @@ interface Props {
 export function InsightCard({ card, onDismiss }: Props) {
   const meta = getSeverityMeta(card.severity);
   const Icon = meta.icon;
-  const { t } = useT();
+  const { lang, t } = useT();
+  const title = card.title_i18n?.[lang] ?? card.title;
+  const summary = card.summary_i18n?.[lang] ?? card.summary;
 
   return (
     <Card
@@ -62,8 +64,8 @@ export function InsightCard({ card, onDismiss }: Props) {
               <div className="flex items-center gap-2">
                 <Badge variant={meta.badgeVariant}>{t(meta.labelKey)}</Badge>
               </div>
-              <h3 className="text-sm font-semibold leading-tight">{card.title}</h3>
-              <p className="text-xs text-muted-foreground">{card.summary}</p>
+              <h3 className="text-sm font-semibold leading-tight">{title}</h3>
+              <p className="text-xs text-muted-foreground">{summary}</p>
             </div>
           </div>
 

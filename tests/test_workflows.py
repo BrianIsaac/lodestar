@@ -41,7 +41,12 @@ class TestSpendingWorkflow:
         assert result["summary"].total > 0
         assert result["chart_spec"] is not None
         assert result["chart_spec"].chart_type == "donut"
-        assert "chi tiêu" in result["insight_text"].lower() or "VND" in result["insight_text"]
+        insight = result["insight_text"]
+        assert isinstance(insight, dict)
+        assert set(insight.keys()) == {"vi", "en", "ko"}
+        assert "chi tiêu" in insight["vi"].lower() or "VND" in insight["vi"]
+        assert "spending" in insight["en"].lower() or "VND" in insight["en"]
+        assert "지출" in insight["ko"] or "VND" in insight["ko"]
 
     async def test_returns_anomalies(self) -> None:
         from lodestar.agents.workflows.spending import spending_graph
@@ -73,8 +78,13 @@ class TestProductMatchWorkflow:
         })
 
         assert len(result["results"]) > 0
-        assert "sản phẩm" in result["insight_text"].lower()
-        assert "thông tin sản phẩm" in result["insight_text"].lower()
+        insight = result["insight_text"]
+        assert isinstance(insight, dict)
+        assert set(insight.keys()) == {"vi", "en", "ko"}
+        assert "sản phẩm" in insight["vi"].lower()
+        assert "thông tin sản phẩm" in insight["vi"].lower()
+        assert "products" in insight["en"].lower()
+        assert "상품" in insight["ko"]
 
     async def test_search_without_customer(self) -> None:
         from lodestar.agents.workflows.product_match import product_match_graph
@@ -114,7 +124,12 @@ class TestScenarioWorkflow:
         assert result["chart_spec"] is not None
         assert result["chart_spec"].chart_type == "waterfall"
 
-        assert "kịch bản" in result["insight_text"].lower() or "home_purchase" in result["insight_text"]
+        insight = result["insight_text"]
+        assert isinstance(insight, dict)
+        assert set(insight.keys()) == {"vi", "en", "ko"}
+        assert "kịch bản" in insight["vi"].lower() or "home_purchase" in insight["vi"]
+        assert "scenario" in insight["en"].lower() or "home_purchase" in insight["en"]
+        assert "시나리오" in insight["ko"] or "home_purchase" in insight["ko"]
 
     async def test_scenario_has_risk_flags(self) -> None:
         from lodestar.agents.workflows.scenario import scenario_graph

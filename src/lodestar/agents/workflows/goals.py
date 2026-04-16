@@ -19,7 +19,7 @@ class GoalState(TypedDict):
     savings_rate: SavingsRate | None
     projection: GoalProjection | None
     chart_spec: ChartSpec | None
-    insight_text: str
+    insight_text: dict[str, str]
 
 
 async def fetch_income(state: GoalState) -> dict:
@@ -77,28 +77,58 @@ def build_chart(state: GoalState) -> dict:
     return {"chart_spec": chart}
 
 
+_GOAL_COPY: dict[str, dict[str, str]] = {
+    "no_projection": {
+        "vi": "Không thể dự báo tiến độ mục tiêu.",
+        "en": "Cannot project goal progress.",
+        "ko": "목표 진척을 예측할 수 없습니다.",
+    },
+    "on_track": {
+        "vi": "Mục tiêu đang đúng tiến độ — dự kiến hoàn thành {d}.",
+        "en": "Goal is on track — expected completion {d}.",
+        "ko": "목표가 순조롭게 진행 중입니다 — 예상 완료일 {d}.",
+    },
+    "needs_adjust": {
+        "vi": "Mục tiêu cần điều chỉnh — cần {m:,.0f} VND/tháng.",
+        "en": "Goal needs adjustment — {m:,.0f} VND/month required.",
+        "ko": "목표 조정이 필요합니다 — 월 {m:,.0f} VND 필요.",
+    },
+    "savings_rate": {
+        "vi": "Tỷ lệ tiết kiệm hiện tại: {r:.1f}% thu nhập.",
+        "en": "Current savings rate: {r:.1f}% of income.",
+        "ko": "현재 저축률: 소득의 {r:.1f}%.",
+    },
+    "payday": {
+        "vi": "Ngày lương phát hiện: ngày {d} hàng tháng.",
+        "en": "Payday detected: day {d} of each month.",
+        "ko": "급여일 감지: 매월 {d}일.",
+    },
+}
+
+
 def compose_insight(state: GoalState) -> dict:
-    """Compose human-readable goal tracking insight."""
+    """Compose human-readable goal tracking insight in every language."""
     projection = state.get("projection")
     savings = state.get("savings_rate")
     income = state.get("income_pattern")
 
     if not projection:
-        return {"insight_text": "Không thể dự báo tiến độ mục tiêu."}
+        return {"insight_text": dict(_GOAL_COPY["no_projection"])}
 
-    lines = []
-    if projection.on_track:
-        lines.append(f"Mục tiêu đang đúng tiến độ — dự kiến hoàn thành {projection.projected_date}.")
-    else:
-        lines.append(f"Mục tiêu cần điều chỉnh — cần {projection.monthly_required:,.0f} VND/tháng.")
+    out: dict[str, str] = {}
+    for lang in ("vi", "en", "ko"):
+        lines: list[str] = []
+        if projection.on_track:
+            lines.append(_GOAL_COPY["on_track"][lang].format(d=projection.projected_date))
+        else:
+            lines.append(_GOAL_COPY["needs_adjust"][lang].format(m=projection.monthly_required))
+        if savings:
+            lines.append(_GOAL_COPY["savings_rate"][lang].format(r=savings.rate))
+        if income and income.detected_payday:
+            lines.append(_GOAL_COPY["payday"][lang].format(d=income.detected_payday))
+        out[lang] = "\n".join(lines)
 
-    if savings:
-        lines.append(f"Tỷ lệ tiết kiệm hiện tại: {savings.rate:.1f}% thu nhập.")
-
-    if income and income.detected_payday:
-        lines.append(f"Ngày lương phát hiện: ngày {income.detected_payday} hàng tháng.")
-
-    return {"insight_text": "\n".join(lines)}
+    return {"insight_text": out}
 
 
 def build_goal_graph() -> StateGraph:

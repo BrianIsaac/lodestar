@@ -60,6 +60,18 @@ Thumbs.db
 *.log
 logs/
 
+# Playwright MCP captures (screenshots + snapshots)
+.playwright-mcp/
+*.playwright-mcp/
+page-*.yml
+console-*.log
+feed-*.png
+plan-*.png
+products-*.png
+chat-*.png
+insight-*.png
+demo-*.png
+
 # Claude Code
 .claude/
 

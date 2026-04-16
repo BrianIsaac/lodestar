@@ -40,9 +40,16 @@ import type { SavingsGoal } from "@/lib/types";
 
 interface Props {
   customerId: string;
+  /** Optional preset coming from a feed card quick-prompt (?goal_*). When
+   *  present the dialog opens on mount with the values pre-filled. */
+  goalPreset?: {
+    name?: string;
+    amount?: string;
+    months?: string;
+  };
 }
 
-export function GoalsView({ customerId }: Props) {
+export function GoalsView({ customerId, goalPreset }: Props) {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
   const { t } = useT();
@@ -68,7 +75,7 @@ export function GoalsView({ customerId }: Props) {
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold tracking-tight">{t("goals_heading")}</h2>
-          <NewGoalDialog customerId={customerId} onCreated={refresh} />
+          <NewGoalDialog customerId={customerId} onCreated={refresh} preset={goalPreset} />
         </div>
 
         {loading ? (
@@ -137,9 +144,11 @@ function GoalCard({ goal }: { goal: SavingsGoal }) {
 function NewGoalDialog({
   customerId,
   onCreated,
+  preset,
 }: {
   customerId: string;
   onCreated: () => void;
+  preset?: { name?: string; amount?: string; months?: string };
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -147,6 +156,23 @@ function NewGoalDialog({
   const [date, setDate] = useState("");
   const [saving, setSaving] = useState(false);
   const { t } = useT();
+
+  // When a feed quick-prompt deep-links in (?goal_name=…), pre-fill and
+  // open the dialog. Runs only once per preset snapshot.
+  useEffect(() => {
+    if (!preset?.name) return;
+    setName(preset.name);
+    if (preset.amount) setAmount(preset.amount);
+    if (preset.months) {
+      const months = Number(preset.months);
+      if (!Number.isNaN(months) && months > 0) {
+        const target = new Date();
+        target.setMonth(target.getMonth() + months);
+        setDate(target.toISOString().slice(0, 10));
+      }
+    }
+    setOpen(true);
+  }, [preset?.name, preset?.amount, preset?.months]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

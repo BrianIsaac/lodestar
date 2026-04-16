@@ -17,6 +17,7 @@ from lodestar.models.insight import (
     InsightCard,
     InsightFeed,
     InsightSeverity,
+    QuickPrompt,
 )
 from lodestar.models.learning import (
     CohortInsight,
@@ -62,6 +63,7 @@ __all__ = [
     "InsightCard",
     "InsightFeed",
     "InsightSeverity",
+    "QuickPrompt",
     "MoMChange",
     "NetWorth",
     "ProductFilters",

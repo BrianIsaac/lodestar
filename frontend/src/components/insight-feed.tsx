@@ -22,13 +22,16 @@ import type { InsightCard as InsightCardType } from "@/lib/types";
 
 interface Props {
   customerId: string;
+  /** Bumped by the parent when a demo transaction is injected, forcing a
+   *  REST refetch in addition to the SSE diff stream. */
+  refreshKey?: number;
 }
 
 type FeedState =
   | { status: "loading" }
   | { status: "ready"; cards: InsightCardType[] };
 
-export function InsightFeed({ customerId }: Props) {
+export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
   const [state, setState] = useState<FeedState>({ status: "loading" });
   const { t } = useT();
   const { mode } = useLayoutMode();
@@ -53,7 +56,8 @@ export function InsightFeed({ customerId }: Props) {
   useEffect(() => {
     let cancelled = false;
     // Cards carry title_i18n/summary_i18n, so language toggles are pure
-    // client-side renders — no refetch needed when lang changes.
+    // client-side renders. We refetch when customerId or refreshKey
+    // (demo transaction injection) changes.
     fetchFeed(customerId)
       .then((feed) => {
         if (!cancelled) setState({ status: "ready", cards: feed.cards });
@@ -64,7 +68,7 @@ export function InsightFeed({ customerId }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [customerId]);
+  }, [customerId, refreshKey]);
 
   const handleDismiss = useCallback(
     (insightId: string) => {
@@ -117,9 +121,21 @@ export function InsightFeed({ customerId }: Props) {
         <AlertDescription>{t("compliance_banner")}</AlertDescription>
       </Alert>
       <div className={cardGridClass}>
-        {cards.map((card) => (
-          <InsightCard key={card.insight_id} card={card} onDismiss={handleDismiss} />
-        ))}
+        {cards.map((card) => {
+          // Cards delivered by the SSE stream get a brief entrance pulse
+          // so the audience sees the agent react live.
+          const arrivedLive = stream.cards.some(
+            (c) => c.insight_id === card.insight_id
+          );
+          return (
+            <InsightCard
+              key={card.insight_id}
+              card={card}
+              onDismiss={handleDismiss}
+              justArrived={arrivedLive}
+            />
+          );
+        })}
       </div>
     </div>
   );

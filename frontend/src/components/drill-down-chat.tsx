@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Send, Wrench } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,9 +42,23 @@ export function DrillDownChat({
   const [followups, setFollowups] = useState<string[]>(initialFollowups);
   const scrollAnchor = useRef<HTMLDivElement>(null);
 
+  const searchParams = useSearchParams();
+  const prefillPrompt = searchParams.get("q");
+
   useEffect(() => {
     scrollAnchor.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
+
+  // Auto-submit a quick-prompt coming from a feed card chip. Runs once
+  // per URL, guarded against re-fire when state changes.
+  const submittedPrefillRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!prefillPrompt) return;
+    if (submittedPrefillRef.current === prefillPrompt) return;
+    submittedPrefillRef.current = prefillPrompt;
+    submit(prefillPrompt);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillPrompt]);
 
   // Reset the empty-thread prompt set when the language changes so chips
   // don't keep showing the previously-selected language's text.

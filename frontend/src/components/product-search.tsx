@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Wallet } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +35,14 @@ const ENTITY_LABEL_KEY: Record<string, StringKey> = {
   life: "product_entity_life",
 };
 
-export function ProductSearch() {
-  const [query, setQuery] = useState("");
+interface ProductSearchProps {
+  /** Optional search phrase coming from a feed card quick-prompt. When
+   *  set, the component fires the search on mount. */
+  initialQuery?: string;
+}
+
+export function ProductSearch({ initialQuery }: ProductSearchProps = {}) {
+  const [query, setQuery] = useState(initialQuery ?? "");
   const [results, setResults] = useState<ProductInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -62,6 +68,15 @@ export function ProductSearch() {
       setLoading(false);
     }
   }
+
+  // Auto-run the search when initialQuery is provided (feed quick-prompt
+  // cross-link). Runs only once per initialQuery value.
+  useEffect(() => {
+    if (initialQuery && initialQuery.trim()) {
+      run(initialQuery);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialQuery]);
 
   return (
     <div className="flex flex-col gap-4">

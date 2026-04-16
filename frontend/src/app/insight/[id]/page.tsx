@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -71,13 +71,15 @@ export default function InsightPage({
           </Card>
         )}
 
-        <DrillDownChat
-          insightId={id}
-          customerId={CUSTOMER_ID}
-          initialContext={
-            card ? `${card.title}\n${card.summary}` : `Insight ID: ${id}`
-          }
-        />
+        <Suspense fallback={null}>
+          <DrillDownChat
+            insightId={id}
+            customerId={CUSTOMER_ID}
+            initialContext={
+              card ? `${card.title}\n${card.summary}` : `Insight ID: ${id}`
+            }
+          />
+        </Suspense>
       </div>
     </AppShell>
   );

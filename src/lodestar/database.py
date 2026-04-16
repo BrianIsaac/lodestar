@@ -91,8 +91,10 @@ CREATE TABLE IF NOT EXISTS insight_cards (
     customer_id TEXT NOT NULL REFERENCES customers(customer_id),
     title TEXT NOT NULL,
     summary TEXT,
-    title_i18n TEXT,        -- JSON {"vi":"...","en":"...","ko":"..."}
-    summary_i18n TEXT,      -- JSON {"vi":"...","en":"...","ko":"..."}
+    title_i18n TEXT,            -- JSON {"vi":"...","en":"...","ko":"..."}
+    summary_i18n TEXT,          -- JSON {"vi":"...","en":"...","ko":"..."}
+    action_hint_i18n TEXT,      -- JSON {"vi":[...],"en":[...],"ko":[...]}
+    quick_prompts_i18n TEXT,    -- JSON {"vi":[{text,action,params}], ...}
     severity TEXT DEFAULT 'info',
     chart_spec TEXT,
     suggested_actions TEXT DEFAULT '[]',
@@ -149,6 +151,8 @@ async def init_db() -> None:
         for stmt in (
             "ALTER TABLE insight_cards ADD COLUMN title_i18n TEXT",
             "ALTER TABLE insight_cards ADD COLUMN summary_i18n TEXT",
+            "ALTER TABLE insight_cards ADD COLUMN action_hint_i18n TEXT",
+            "ALTER TABLE insight_cards ADD COLUMN quick_prompts_i18n TEXT",
         ):
             try:
                 await db.execute(stmt)

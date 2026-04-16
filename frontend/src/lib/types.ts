@@ -8,6 +8,12 @@ export interface ChartSpec {
   summary: string;
 }
 
+export interface QuickPrompt {
+  text: string;
+  action: "chat" | "plan" | "products" | string;
+  params?: Record<string, unknown>;
+}
+
 export interface InsightCard {
   insight_id: string;
   customer_id: string;
@@ -15,6 +21,8 @@ export interface InsightCard {
   summary: string;
   title_i18n?: Record<string, string> | null;
   summary_i18n?: Record<string, string> | null;
+  action_hint_i18n?: Record<string, string[]> | null;
+  quick_prompts_i18n?: Record<string, QuickPrompt[]> | null;
   severity: "life_event" | "anomaly" | "milestone" | "info" | "product";
   chart_spec?: ChartSpec | null;
   suggested_actions: string[];

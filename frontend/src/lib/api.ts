@@ -2,6 +2,7 @@
 
 import type {
   ChatResponse,
+  InsightCard,
   InsightFeed,
   ProductInfo,
   SavingsGoal,
@@ -106,5 +107,56 @@ export async function searchProducts(
   const params = new URLSearchParams({ query, language });
   const res = await fetch(`${API}/products/search?${params.toString()}`);
   if (!res.ok) throw new Error(`Search error: ${res.status}`);
+  return res.json();
+}
+
+export interface RecentTransaction {
+  transaction_id: string;
+  date: string;
+  amount: number;
+  category: string;
+  merchant: string;
+  entity: string;
+}
+
+export async function fetchRecentTransactions(
+  customerId: string,
+  limit: number = 8
+): Promise<RecentTransaction[]> {
+  const res = await fetch(`${API}/transactions/${customerId}?limit=${limit}`);
+  if (!res.ok) throw new Error(`Transactions error: ${res.status}`);
+  return res.json();
+}
+
+export interface DemoTransactionPayload {
+  customer_id: string;
+  merchant: string;
+  amount: number;
+  category?: string;
+  entity?: string;
+  description?: string;
+}
+
+export interface DemoTransactionResult {
+  transaction_id: string;
+  transaction: {
+    merchant: string;
+    amount: number;
+    category: string;
+    entity: string;
+    date: string;
+  };
+  new_insights: InsightCard[];
+}
+
+export async function postDemoTransaction(
+  payload: DemoTransactionPayload
+): Promise<DemoTransactionResult> {
+  const res = await fetch(`${API}/demo/transaction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Demo injection error: ${res.status}`);
   return res.json();
 }

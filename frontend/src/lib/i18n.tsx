@@ -74,6 +74,60 @@ const DICT = {
   stream_live: { vi: "Đang hoạt động", en: "Live", ko: "라이브" },
   stream_offline: { vi: "Ngoại tuyến", en: "Offline", ko: "오프라인" },
 
+  // Recent transactions strip
+  recent_transactions: {
+    vi: "Giao dịch gần đây",
+    en: "Recent activity",
+    ko: "최근 거래",
+  },
+  recent_transactions_empty: {
+    vi: "Chưa có giao dịch.",
+    en: "No transactions yet.",
+    ko: "아직 거래가 없습니다.",
+  },
+
+  // Demo panel
+  demo_open: { vi: "Mô phỏng", en: "Simulate", ko: "시뮬레이션" },
+  demo_close: { vi: "Đóng", en: "Close", ko: "닫기" },
+  demo_panel_title: {
+    vi: "Mô phỏng hoạt động",
+    en: "Simulate activity",
+    ko: "활동 시뮬레이션",
+  },
+  demo_panel_desc: {
+    vi: "Inject giao dịch để xem Coach phản ứng thời gian thực.",
+    en: "Inject a transaction and watch the Coach react in real time.",
+    ko: "거래를 주입하면 코치가 실시간으로 반응합니다.",
+  },
+  demo_custom_header: {
+    vi: "Tùy chỉnh",
+    en: "Custom transaction",
+    ko: "직접 입력",
+  },
+  demo_field_merchant: { vi: "Đơn vị / Merchant", en: "Merchant", ko: "가맹점" },
+  demo_field_amount: {
+    vi: "Số tiền (âm = chi tiêu)",
+    en: "Amount (negative = outflow)",
+    ko: "금액 (음수 = 지출)",
+  },
+  demo_field_category: { vi: "Danh mục", en: "Category", ko: "카테고리" },
+  demo_inject: { vi: "Ghi giao dịch", en: "Inject", ko: "주입" },
+  demo_toast_new_insight: {
+    vi: "Coach phát hiện: {title}",
+    en: "Coach detected: {title}",
+    ko: "코치가 감지: {title}",
+  },
+  demo_toast_recorded: {
+    vi: "Đã ghi giao dịch {merchant}",
+    en: "Transaction recorded: {merchant}",
+    ko: "거래 기록됨: {merchant}",
+  },
+  demo_toast_error: {
+    vi: "Không ghi được giao dịch.",
+    en: "Could not record the transaction.",
+    ko: "거래를 기록하지 못했습니다.",
+  },
+
   // Tool call indicator
   chat_tool_running: {
     vi: "Đang gọi công cụ {name}…",
@@ -123,6 +177,11 @@ const DICT = {
     ko: "생명 보험",
   },
   card_cta: { vi: "Xem chi tiết", en: "View details", ko: "자세히 보기" },
+  card_action_header: {
+    vi: "Có thể cân nhắc",
+    en: "You could consider",
+    ko: "고려할 만한 사항",
+  },
   dismiss_aria: { vi: "Bỏ qua", en: "Dismiss", ko: "닫기" },
   dismiss_success: {
     vi: "Đã bỏ qua. Coach sẽ ghi nhận phản hồi.",

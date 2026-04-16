@@ -3,6 +3,8 @@
 import asyncio
 import json
 import logging
+import uuid
+from datetime import date, timedelta
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -69,7 +71,14 @@ class DismissRequest(BaseModel):
 
 @app.on_event("startup")
 async def startup() -> None:
-    """Initialise database, RAG index, and seed data on first run."""
+    """Initialise database, RAG index, and seed data on first run.
+
+    The feed starts empty on every boot — insight cards are generated
+    live from transactions as they stream in via POST /demo/transaction
+    (or a future real transaction pipeline). This makes the autonomous
+    monitoring story demonstrable: judges see the agent react to real
+    events instead of a pre-populated feed.
+    """
     settings.ensure_dirs()
     await init_db()
 
@@ -87,8 +96,15 @@ async def startup() -> None:
         await seed()
         logger.info("Seeded synthetic data")
 
-    cards = await run_background_cycle()
-    logger.info("Initial background cycle: %d insight cards", len(cards))
+    # Start with a clean feed on every boot. Transaction history stays
+    # intact so trigger rules still have a baseline to detect anomalies.
+    db = await get_db()
+    try:
+        await db.execute("DELETE FROM insight_cards")
+        await db.commit()
+    finally:
+        await db.close()
+    logger.info("Insight feed cleared — waiting for live transactions")
 
 
 # --- Insight Feed ---
@@ -130,8 +146,15 @@ async def get_insight_feed(
 
         cards: list[InsightCard] = []
         for r in rows:
-            title_i18n = _load_json_dict(r["title_i18n"] if "title_i18n" in r.keys() else None)
-            summary_i18n = _load_json_dict(r["summary_i18n"] if "summary_i18n" in r.keys() else None)
+            cols = r.keys()
+            title_i18n = _load_json_dict(r["title_i18n"] if "title_i18n" in cols else None)
+            summary_i18n = _load_json_dict(r["summary_i18n"] if "summary_i18n" in cols else None)
+            action_hint_i18n = _load_action_hint(
+                r["action_hint_i18n"] if "action_hint_i18n" in cols else None
+            )
+            quick_prompts_i18n = _load_quick_prompts(
+                r["quick_prompts_i18n"] if "quick_prompts_i18n" in cols else None
+            )
             title = (title_i18n or {}).get(lang) or r["title"]
             summary = (summary_i18n or {}).get(lang) or r["summary"]
             cards.append(
@@ -142,6 +165,8 @@ async def get_insight_feed(
                     summary=summary,
                     title_i18n=title_i18n,
                     summary_i18n=summary_i18n,
+                    action_hint_i18n=action_hint_i18n,
+                    quick_prompts_i18n=quick_prompts_i18n,
                     severity=r["severity"],
                     compliance_class=r["compliance_class"],
                     priority_score=r["priority_score"],
@@ -165,6 +190,40 @@ def _load_json_dict(raw: str | None) -> dict[str, str] | None:
     except (TypeError, ValueError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def _load_action_hint(raw: str | None) -> dict[str, list[str]] | None:
+    """Parse the action_hint_i18n JSON column."""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    return {
+        k: v for k, v in value.items() if isinstance(v, list) and all(isinstance(s, str) for s in v)
+    }
+
+
+def _load_quick_prompts(raw: str | None):
+    """Parse the quick_prompts_i18n JSON column into QuickPrompt objects."""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    from lodestar.models import QuickPrompt as _QP
+    out: dict[str, list] = {}
+    for lang, items in value.items():
+        if not isinstance(items, list):
+            continue
+        out[lang] = [_QP(**item) if isinstance(item, dict) else item for item in items]
+    return out or None
 
 
 @app.post("/dismiss/{insight_id}")
@@ -366,11 +425,59 @@ async def search_products(
     return await _search(query)
 
 
+# --- Recent transactions ---
+
+
+@app.get("/transactions/{customer_id}")
+async def recent_transactions(customer_id: str, limit: int = 10) -> list[dict]:
+    """Return the most recent transactions for a customer.
+
+    Used by the feed-tab transaction strip so the audience can see the
+    cause (transaction) and the effect (insight card) in the same view.
+
+    Args:
+        customer_id: Customer identifier.
+        limit: Number of transactions to return, newest first.
+
+    Returns:
+        List of transaction dicts ordered by date DESC.
+    """
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            """SELECT transaction_id, date, amount, category, merchant, entity
+               FROM transactions WHERE customer_id = ?
+               ORDER BY date DESC, transaction_id DESC
+               LIMIT ?""",
+            (customer_id, limit),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "transaction_id": r["transaction_id"],
+                "date": r["date"],
+                "amount": r["amount"],
+                "category": r["category"],
+                "merchant": r["merchant"],
+                "entity": r["entity"],
+            }
+            for r in rows
+        ]
+    finally:
+        await db.close()
+
+
 # --- SSE Insight Stream ---
 
 @app.get("/stream/{customer_id}")
 async def stream_insights(customer_id: str) -> EventSourceResponse:
-    """SSE stream pushing new insight cards as they're generated.
+    """SSE stream emitting insight cards as they're created.
+
+    Diff-only semantics: cards already present when the connection opens
+    are captured in a `seen` set and never re-emitted. Only rows whose
+    `insight_id` appears AFTER the connection was established flow through
+    to the client — giving the frontend a clean "a new card just arrived"
+    signal that it can animate in.
 
     Args:
         customer_id: Customer to stream for.
@@ -379,33 +486,197 @@ async def stream_insights(customer_id: str) -> EventSourceResponse:
         SSE event stream.
     """
     async def event_generator():
+        seen: set[str] = set()
+        # Seed the seen set with whatever's already on screen so we only
+        # emit genuinely new arrivals after connection.
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT insight_id FROM insight_cards WHERE customer_id = ?",
+                (customer_id,),
+            )
+            rows = await cursor.fetchall()
+            seen.update(r["insight_id"] for r in rows)
+        finally:
+            await db.close()
+
+        # Tighter poll cadence than the old background interval — the demo
+        # flow wants sub-second feedback when a transaction drops.
+        poll_interval_seconds = max(1, min(2, settings.background_poll_interval))
+
         while True:
             db = await get_db()
             try:
                 cursor = await db.execute(
                     """SELECT * FROM insight_cards
                        WHERE customer_id = ? AND dismissed = 0
-                       ORDER BY created_at DESC LIMIT 5""",
+                       ORDER BY created_at ASC""",
                     (customer_id,),
                 )
                 rows = await cursor.fetchall()
-                for r in rows:
-                    yield {
-                        "event": "insight",
-                        "data": json.dumps({
-                            "insight_id": r["insight_id"],
-                            "title": r["title"],
-                            "summary": r["summary"],
-                            "severity": r["severity"],
-                            "priority_score": r["priority_score"],
-                        }),
-                    }
             finally:
                 await db.close()
 
-            await asyncio.sleep(settings.background_poll_interval)
+            for r in rows:
+                iid = r["insight_id"]
+                if iid in seen:
+                    continue
+                seen.add(iid)
+                title_i18n = _load_json_dict(
+                    r["title_i18n"] if "title_i18n" in r.keys() else None
+                )
+                summary_i18n = _load_json_dict(
+                    r["summary_i18n"] if "summary_i18n" in r.keys() else None
+                )
+                action_hint_i18n = _load_action_hint(
+                    r["action_hint_i18n"] if "action_hint_i18n" in r.keys() else None
+                )
+                quick_prompts_i18n = _load_quick_prompts(
+                    r["quick_prompts_i18n"] if "quick_prompts_i18n" in r.keys() else None
+                )
+                payload = {
+                    "insight_id": iid,
+                    "customer_id": r["customer_id"],
+                    "title": r["title"],
+                    "summary": r["summary"],
+                    "title_i18n": title_i18n,
+                    "summary_i18n": summary_i18n,
+                    "action_hint_i18n": action_hint_i18n,
+                    "quick_prompts_i18n": (
+                        {
+                            lang: [
+                                p.model_dump() if hasattr(p, "model_dump") else p
+                                for p in prompts
+                            ]
+                            for lang, prompts in quick_prompts_i18n.items()
+                        }
+                        if quick_prompts_i18n
+                        else None
+                    ),
+                    "severity": r["severity"],
+                    "priority_score": r["priority_score"],
+                    "dismissed": bool(r["dismissed"]),
+                }
+                yield {
+                    "event": "insight",
+                    "data": json.dumps(payload, ensure_ascii=False),
+                }
+
+            await asyncio.sleep(poll_interval_seconds)
 
     return EventSourceResponse(event_generator())
+
+
+# --- Demo transactions ---
+
+
+class DemoTransactionRequest(BaseModel):
+    """Body for POST /demo/transaction — synthesises a customer action and
+    immediately runs the trigger pipeline so judges can see the agent
+    react in real time."""
+
+    customer_id: str
+    merchant: str
+    amount: float  # negative for outflow, positive for credit
+    category: str = "shopping"
+    entity: str = "bank"
+    description: str = ""
+
+
+@app.post("/demo/transaction")
+async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
+    """Insert a synthetic transaction, re-evaluate triggers for that
+    customer, and return any new insight cards that fired.
+
+    Uses the exact same trigger + compose path as the background loop —
+    `/demo/transaction` is literally the autonomous pipeline invoked by
+    an explicit event rather than a timer.
+    """
+    from lodestar.agents.background import (
+        _compose_insight_card,
+        _is_duplicate,
+        _store_insight,
+    )
+    from lodestar.agents.triggers import run_all_triggers
+
+    today = date.today().isoformat()
+    transaction_id = f"TX-DEMO-{uuid.uuid4().hex[:10]}"
+
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT account_id FROM accounts WHERE customer_id = ? LIMIT 1",
+            (body.customer_id,),
+        )
+        account_row = await cursor.fetchone()
+        account_id = account_row["account_id"] if account_row else body.customer_id
+
+        await db.execute(
+            """INSERT INTO transactions
+               (transaction_id, customer_id, account_id, date, amount, category,
+                merchant, description, entity, currency)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'VND')""",
+            (
+                transaction_id,
+                body.customer_id,
+                account_id,
+                today,
+                body.amount,
+                body.category,
+                body.merchant,
+                body.description or body.merchant,
+                body.entity,
+            ),
+        )
+        await db.commit()
+
+        # Re-fetch the customer's recent transaction window for trigger eval.
+        start_date = (date.today() - timedelta(days=120)).isoformat()
+        cursor = await db.execute(
+            "SELECT * FROM transactions WHERE customer_id = ? AND date >= ? ORDER BY date",
+            (body.customer_id, start_date),
+        )
+        tx_rows = await cursor.fetchall()
+    finally:
+        await db.close()
+
+    from lodestar.models import Transaction as _Tx
+    transactions = [
+        _Tx(
+            transaction_id=r["transaction_id"],
+            customer_id=r["customer_id"],
+            account_id=r["account_id"],
+            date=r["date"],
+            amount=r["amount"],
+            category=r["category"],
+            merchant=r["merchant"],
+            description=r["description"],
+            entity=r["entity"],
+        )
+        for r in tx_rows
+    ]
+
+    events = run_all_triggers(transactions, body.customer_id)
+    new_cards: list[InsightCard] = []
+    for event in events:
+        if await _is_duplicate(body.customer_id, event.trigger_type):
+            continue
+        card = _compose_insight_card(event)
+        await _store_insight(card)
+        new_cards.append(card)
+        logger.info("Demo insight: %s for %s", card.title, body.customer_id)
+
+    return {
+        "transaction_id": transaction_id,
+        "transaction": {
+            "merchant": body.merchant,
+            "amount": body.amount,
+            "category": body.category,
+            "entity": body.entity,
+            "date": today,
+        },
+        "new_insights": [c.model_dump() for c in new_cards],
+    }
 
 
 # --- Health ---

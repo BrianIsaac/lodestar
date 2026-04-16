@@ -238,3 +238,67 @@ async def update_importance_post_outcome(
         await db.commit()
     finally:
         await db.close()
+
+
+def format_lessons_for_prompt(lessons: list[CustomerLesson]) -> str:
+    """Render retrieved lessons as a compact block the detector can paste
+    into its user message. Returns an empty string when the list is empty
+    so the caller can safely prepend without a conditional.
+
+    Args:
+        lessons: Lessons returned by ``get_relevant_lessons``.
+
+    Returns:
+        Multi-line memory block or empty string.
+    """
+    if not lessons:
+        return ""
+    lines = ["Prior learnings about this customer (agent memory):"]
+    for L in lessons:
+        conf_pct = int(round(L.confidence * 100))
+        if L.times_evolved:
+            evolved = f", evolved {L.times_evolved}×"
+        else:
+            evolved = ""
+        lines.append(
+            f"- When {L.conditions} — {L.insight} "
+            f"(confidence {conf_pct}%{evolved})"
+        )
+    return "\n".join(lines)
+
+
+async def delete_lessons_for_customer(customer_id: str) -> int:
+    """Drop all stored lessons for one customer. Used by the demo reset."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "DELETE FROM lessons WHERE customer_id = ?", (customer_id,)
+        )
+        count = cursor.rowcount
+        await db.commit()
+        return count
+    finally:
+        await db.close()
+
+
+async def cohort_key_for_customer(customer_id: str) -> str | None:
+    """Derive a non-PII cohort key from the customer profile.
+
+    Format: ``{city}_{segment}`` lower-cased with spaces collapsed.
+    Used by the cohort aggregator to bucket lessons across customers
+    without exposing identifying details.
+    """
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "SELECT city, segment FROM customers WHERE customer_id = ?",
+            (customer_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        city = (row["city"] or "unknown").lower().replace(" ", "_")
+        segment = (row["segment"] or "unknown").lower().replace(" ", "_")
+        return f"{city}_{segment}"
+    finally:
+        await db.close()

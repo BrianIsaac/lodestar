@@ -120,3 +120,49 @@ async def extract_and_store_lesson(
         await db.close()
 
     return stored
+
+
+async def delete_reflections_for_customer(customer_id: str) -> int:
+    """Drop all reflections + owned interactions for one customer."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            "DELETE FROM reflections WHERE customer_id = ?", (customer_id,)
+        )
+        refl_count = cursor.rowcount
+        await db.execute(
+            "DELETE FROM interactions WHERE customer_id = ?", (customer_id,)
+        )
+        await db.commit()
+        return refl_count
+    finally:
+        await db.close()
+
+
+async def list_reflections_for_customer(customer_id: str) -> list[dict]:
+    """Return every reflection row for a customer, most recent first."""
+    db = await get_db()
+    try:
+        cursor = await db.execute(
+            """SELECT reflection_id, interaction_id, process_grade,
+                      outcome_quality, quadrant, lesson_extracted, created_at
+               FROM reflections
+               WHERE customer_id = ?
+               ORDER BY created_at DESC""",
+            (customer_id,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "reflection_id": r["reflection_id"],
+                "interaction_id": r["interaction_id"],
+                "process_grade": r["process_grade"],
+                "outcome_quality": r["outcome_quality"],
+                "quadrant": r["quadrant"],
+                "lesson_extracted": bool(r["lesson_extracted"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        await db.close()

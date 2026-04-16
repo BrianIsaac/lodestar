@@ -112,18 +112,14 @@ CREATE TABLE IF NOT EXISTS interactions (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS translation_cache (
-    source_text TEXT NOT NULL,
-    target_lang TEXT NOT NULL,
-    translated_text TEXT NOT NULL,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (source_text, target_lang)
-);
-
 CREATE INDEX IF NOT EXISTS idx_transactions_customer ON transactions(customer_id, date);
 CREATE INDEX IF NOT EXISTS idx_transactions_category ON transactions(customer_id, category);
 CREATE INDEX IF NOT EXISTS idx_insight_cards_customer ON insight_cards(customer_id, dismissed, priority_score DESC);
 CREATE INDEX IF NOT EXISTS idx_lessons_customer ON lessons(customer_id);
+CREATE INDEX IF NOT EXISTS idx_interactions_insight ON interactions(insight_id);
+CREATE INDEX IF NOT EXISTS idx_reflections_customer ON reflections(customer_id, created_at DESC);
+
+DROP TABLE IF EXISTS translation_cache;
 """
 
 

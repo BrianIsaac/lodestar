@@ -228,27 +228,79 @@ def _load_quick_prompts(raw: str | None):
 
 @app.post("/dismiss/{insight_id}")
 async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
-    """Dismiss an insight card — feeds back into learning loop.
+    """Dismiss an insight card and feed the dismissal into the learning loop.
 
-    Args:
-        insight_id: Insight to dismiss.
-        body: Request with customer_id.
-
-    Returns:
-        Confirmation dict.
+    Dismissal is a negative outcome signal: the detector's process was
+    sound (it produced a well-formed card) but the customer did not find
+    it useful. The reflection/lesson pipeline records this as a
+    ``bad_luck`` quadrant and stores a dampening lesson so future
+    detector runs for this customer reduce the frequency of cards with
+    the same conditions.
     """
+    from lodestar.learning.cohort import aggregate_to_cohort
+    from lodestar.learning.interactions import (
+        append_to_interaction,
+        get_interaction_for_insight,
+    )
+    from lodestar.learning.journal import cohort_key_for_customer
+    from lodestar.learning.reflection import (
+        extract_and_store_lesson,
+        run_reflection,
+    )
+
     db = await get_db()
     try:
         await db.execute(
             "UPDATE insight_cards SET dismissed = 1 WHERE insight_id = ? AND customer_id = ?",
             (insight_id, body.customer_id),
         )
+        cursor = await db.execute(
+            """SELECT title, suggested_actions, priority_score
+               FROM insight_cards WHERE insight_id = ? AND customer_id = ?""",
+            (insight_id, body.customer_id),
+        )
+        row = await cursor.fetchone()
         await db.commit()
     finally:
         await db.close()
 
-    # dismissal = negative signal for any lesson that generated this insight
-    # (simplified: we don't track which lesson generated which insight in PoC)
+    interaction = await get_interaction_for_insight(insight_id)
+    await append_to_interaction(
+        insight_id, {"role": "engagement", "content": "dismissed"}
+    )
+
+    if row and interaction:
+        suggested = (row["suggested_actions"] or "").strip('"[]')
+        trigger_type = suggested.split('"')[0] if suggested else "unknown"
+        conditions = f"trigger={trigger_type}; card_title≈{row['title'][:60]}"
+        reflection = await run_reflection(
+            customer_id=body.customer_id,
+            interaction_id=interaction["interaction_id"],
+            process_grade="A",
+            outcome_quality="bad",
+        )
+        lesson = await extract_and_store_lesson(
+            reflection,
+            conditions=conditions,
+            insight=(
+                "Customer dismissed this card. Reduce frequency or rephrase "
+                "future cards with the same trigger + merchant profile."
+            ),
+            confidence=0.75,
+            importance=4.0,
+            error_type="timing",
+        )
+        if lesson is not None:
+            cohort_key = await cohort_key_for_customer(body.customer_id)
+            if cohort_key:
+                await aggregate_to_cohort(
+                    lesson_conditions=conditions,
+                    lesson_insight=lesson.insight,
+                    pattern_type=trigger_type,
+                    category="engagement",
+                    cohort_key=cohort_key,
+                    confidence=lesson.confidence,
+                )
 
     return {"status": "dismissed", "insight_id": insight_id}
 
@@ -259,16 +311,24 @@ async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
 async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
     """Scoped conversational thread about a specific insight.
 
-    Args:
-        insight_id: Insight being discussed.
-        body: Chat request with message.
-
-    Returns:
-        ChatResponse with assistant message and optional chart.
+    A chat turn is a positive engagement signal — the customer found the
+    card worth a follow-up question. We append to the interaction log and
+    fire a ``earned_reward`` reflection so the learning pipeline stores
+    a reinforcing lesson for this customer/trigger pattern.
     """
-    try:
-        from lodestar.agents.orchestrator import chat
+    from lodestar.agents.orchestrator import chat
+    from lodestar.learning.cohort import aggregate_to_cohort
+    from lodestar.learning.interactions import (
+        append_to_interaction,
+        get_interaction_for_insight,
+    )
+    from lodestar.learning.journal import cohort_key_for_customer
+    from lodestar.learning.reflection import (
+        extract_and_store_lesson,
+        run_reflection,
+    )
 
+    try:
         messages = [ChatMessage(role="user", content=body.message, insight_id=insight_id)]
         response = await chat(
             messages,
@@ -276,12 +336,71 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
             body.insight_context,
             language=body.language,
         )
-        return response
     except Exception as e:
         logger.exception("Chat error")
         return ChatResponse(
             message=ChatMessage(role="assistant", content=_system_error(body.language, e)),
         )
+
+    # Append the Q+A to the interaction timeline.
+    await append_to_interaction(
+        insight_id, {"role": "user", "content": body.message}
+    )
+    await append_to_interaction(
+        insight_id,
+        {"role": "assistant", "content": (response.message.content or "")[:800]},
+    )
+
+    # Engagement → reflection → lesson. Only fires once per interaction
+    # (reflection.extract_and_store_lesson merges if a similar lesson
+    # already exists, so repeated chats simply reinforce the same lesson).
+    interaction = await get_interaction_for_insight(insight_id)
+    if interaction:
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                """SELECT title, suggested_actions FROM insight_cards
+                   WHERE insight_id = ? AND customer_id = ?""",
+                (insight_id, body.customer_id),
+            )
+            row = await cursor.fetchone()
+        finally:
+            await db.close()
+
+        if row:
+            suggested = (row["suggested_actions"] or "").strip('"[]')
+            trigger_type = suggested.split('"')[0] if suggested else "unknown"
+            conditions = f"trigger={trigger_type}; card_title≈{row['title'][:60]}"
+            reflection = await run_reflection(
+                customer_id=body.customer_id,
+                interaction_id=interaction["interaction_id"],
+                process_grade="A",
+                outcome_quality="good",
+            )
+            lesson = await extract_and_store_lesson(
+                reflection,
+                conditions=conditions,
+                insight=(
+                    "Customer engaged with this card via chat. Continue "
+                    "surfacing cards with the same trigger + merchant profile."
+                ),
+                confidence=0.85,
+                importance=6.0,
+                error_type="missed_factor",
+            )
+            if lesson is not None:
+                cohort_key = await cohort_key_for_customer(body.customer_id)
+                if cohort_key:
+                    await aggregate_to_cohort(
+                        lesson_conditions=conditions,
+                        lesson_insight=lesson.insight,
+                        pattern_type=trigger_type,
+                        category="engagement",
+                        cohort_key=cohort_key,
+                        confidence=lesson.confidence,
+                    )
+
+    return response
 
 
 @app.post("/chat")
@@ -660,15 +779,45 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
     )
 
     async def _run_agent():
+        from lodestar.learning.interactions import record_interaction
+
         try:
-            cards = await analyze_transaction(new_tx, transactions, body.customer_id)
-            for card in cards:
-                await _store_insight(card)
-                logger.info(
-                    "Agent insight stored: %s for %s (%s)",
-                    card.title,
+            results = await analyze_transaction(new_tx, transactions, body.customer_id)
+            for result in results:
+                await _store_insight(result.card)
+                await record_interaction(
                     body.customer_id,
-                    card.insight_id,
+                    result.card.insight_id,
+                    messages=[
+                        {
+                            "role": "event",
+                            "content": (
+                                f"Transaction {new_tx.transaction_id} at "
+                                f"{new_tx.merchant} for {new_tx.amount:,.0f} VND "
+                                f"({new_tx.category}) on {new_tx.date}"
+                            ),
+                        },
+                        {
+                            "role": "agent_reasoning",
+                            "content": result.reasoning,
+                            "tools_used": result.tools_used,
+                            "lessons_applied": result.lessons_applied,
+                        },
+                        {
+                            "role": "card",
+                            "content": result.card.title,
+                            "summary": result.card.summary,
+                            "severity": result.card.severity,
+                        },
+                    ],
+                )
+                logger.info(
+                    "Agent insight stored: %s for %s (%s) — tools=%s, lessons_applied=%d",
+                    result.card.title,
+                    body.customer_id,
+                    result.card.insight_id,
+                    result.tools_used,
+                    len(result.lessons_applied),
                 )
         except Exception:
             logger.exception("Detector agent failed for tx %s", transaction_id)
@@ -698,11 +847,16 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
 async def reset_demo(customer_id: str) -> dict:
     """Return the demo to its post-boot "ready" state for one customer.
 
-    Drops every insight card the agent has produced and every injected
-    demo transaction (rows whose id is prefixed ``TX-DEMO-``). The seeded
-    baseline history is preserved so rule sensors still have real
-    patterns to reason against on the next simulation.
+    Drops insight cards, injected demo transactions (``TX-DEMO-*``), savings
+    goals, and the learning artefacts (lessons, reflections, interactions)
+    accumulated across prior demo runs. The seeded baseline transaction
+    history and the cohort_insights aggregate are preserved so the rule
+    sensors still have a realistic pattern to reason against on the next
+    simulation.
     """
+    from lodestar.learning.journal import delete_lessons_for_customer
+    from lodestar.learning.reflection import delete_reflections_for_customer
+
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -722,18 +876,79 @@ async def reset_demo(customer_id: str) -> dict:
     finally:
         await db.close()
 
+    lessons_deleted = await delete_lessons_for_customer(customer_id)
+    reflections_deleted = await delete_reflections_for_customer(customer_id)
+
     logger.info(
-        "Demo reset for %s — %d cards, %d demo tx, %d goals dropped",
+        "Demo reset for %s — %d cards, %d demo tx, %d goals, %d lessons, %d reflections dropped",
         customer_id,
         cards_deleted,
         tx_deleted,
         goals_deleted,
+        lessons_deleted,
+        reflections_deleted,
     )
     return {
         "customer_id": customer_id,
         "cards_deleted": cards_deleted,
         "demo_transactions_deleted": tx_deleted,
         "goals_deleted": goals_deleted,
+        "lessons_deleted": lessons_deleted,
+        "reflections_deleted": reflections_deleted,
+    }
+
+
+@app.get("/memory/{customer_id}")
+async def get_memory(customer_id: str) -> dict:
+    """Expose the learning state the agent holds for one customer.
+
+    Returns the stored lessons (evolved from prior reflections), the
+    reflection history grouped by quadrant, and the cohort aggregates
+    the customer's bucket participates in. Used for demo narration and
+    operational inspection — not a user-facing endpoint.
+    """
+    from lodestar.learning.cohort import get_cohort_insights
+    from lodestar.learning.journal import (
+        cohort_key_for_customer,
+        get_relevant_lessons,
+    )
+    from lodestar.learning.reflection import list_reflections_for_customer
+
+    lessons = await get_relevant_lessons(customer_id, query="", top_k=50)
+    reflections = await list_reflections_for_customer(customer_id)
+
+    cohort_key = await cohort_key_for_customer(customer_id)
+    cohort_rows: list = []
+    if cohort_key:
+        cohort_rows = [
+            {
+                "cohort_key": c.cohort_key,
+                "pattern_type": c.pattern_type,
+                "category": c.category,
+                "insight": c.insight,
+                "confidence": c.confidence,
+                "supporting_count": c.supporting_count,
+            }
+            for c in await get_cohort_insights(cohort_key)
+        ]
+
+    return {
+        "customer_id": customer_id,
+        "cohort_key": cohort_key,
+        "lessons": [
+            {
+                "lesson_id": L.lesson_id,
+                "conditions": L.conditions,
+                "insight": L.insight,
+                "error_type": L.error_type,
+                "confidence": L.confidence,
+                "importance": L.importance,
+                "times_evolved": L.times_evolved,
+            }
+            for L in lessons
+        ],
+        "reflections": reflections,
+        "cohort_insights": cohort_rows,
     }
 
 

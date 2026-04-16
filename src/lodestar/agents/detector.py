@@ -43,7 +43,22 @@ from lodestar.agents.triggers import (
 )
 from lodestar.config import settings
 from lodestar.database import get_db
+from dataclasses import dataclass, field
+
+from lodestar.learning.journal import format_lessons_for_prompt, get_relevant_lessons
 from lodestar.models import ComplianceClass, InsightCard, InsightSeverity, QuickPrompt, Transaction
+
+
+@dataclass
+class DetectorResult:
+    """A card the detector chose to emit, packaged with its provenance so
+    the caller can record an interaction row linking the card to the
+    reasoning and tool calls that produced it."""
+
+    card: InsightCard
+    reasoning: str = ""
+    tools_used: list[str] = field(default_factory=list)
+    lessons_applied: list[str] = field(default_factory=list)
 
 logger = logging.getLogger(__name__)
 
@@ -477,7 +492,7 @@ async def analyze_transaction(
     new_transaction: Transaction,
     transactions: list[Transaction],
     customer_id: str,
-) -> list[InsightCard]:
+) -> list[DetectorResult]:
     """Run the agent loop for a newly-injected transaction.
 
     Args:
@@ -486,14 +501,30 @@ async def analyze_transaction(
         customer_id: Customer identifier.
 
     Returns:
-        List of InsightCards the agent decided to emit. Empty if the
-        agent stayed silent (that's the intended behaviour when nothing
-        meaningful happened — a coffee purchase shouldn't produce a card).
+        List of DetectorResult entries (card + reasoning + tool trace).
+        Empty when the agent decides nothing is worth surfacing — that's
+        the intended behaviour for uninteresting transactions like a
+        coffee purchase.
     """
     client = _client()
     tools = _build_tool_definitions()
 
-    user_msg = (
+    # Pull the customer's prior lessons so the agent has memory. The query
+    # captures the current transaction so embedding-similarity ranking
+    # surfaces the most contextually relevant learnings.
+    memory_query = (
+        f"{new_transaction.merchant} {new_transaction.category} "
+        f"{abs(new_transaction.amount):.0f} VND"
+    )
+    try:
+        lessons = await get_relevant_lessons(customer_id, memory_query, top_k=3)
+    except Exception:
+        logger.exception("Failed to fetch lessons for %s; proceeding without memory", customer_id)
+        lessons = []
+    memory_block = format_lessons_for_prompt(lessons)
+    lessons_applied = [L.lesson_id for L in lessons]
+
+    base_user_msg = (
         f"New transaction: merchant={new_transaction.merchant}, "
         f"amount={new_transaction.amount:,.0f} VND, "
         f"category={new_transaction.category}, "
@@ -502,11 +533,13 @@ async def analyze_transaction(
         f"in the system prompt. Keep each language concise so the response fits in the token budget. "
         f"/no_think"
     )
+    user_msg = f"{memory_block}\n\n{base_user_msg}" if memory_block else base_user_msg
 
     messages: list[dict] = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user_msg},
     ]
+    tools_used: list[str] = []
 
     for turn in range(MAX_TURNS):
         is_final_turn = turn == MAX_TURNS - 1
@@ -546,6 +579,7 @@ async def analyze_transaction(
                     args = json.loads(fn.arguments or "{}")
                 except json.JSONDecodeError:
                     args = {}
+                tools_used.append(fn.name)
                 result = await _execute_tool(fn.name, args, customer_id, transactions)
                 messages.append(
                     {
@@ -590,11 +624,20 @@ async def analyze_transaction(
             return []
 
         logger.info(
-            "Detector emitted card '%s' for tx at %s",
+            "Detector emitted card '%s' for tx at %s (tools=%s, lessons=%d)",
             card.title,
             new_transaction.merchant,
+            tools_used,
+            len(lessons_applied),
         )
-        return [card]
+        return [
+            DetectorResult(
+                card=card,
+                reasoning=str(payload.get("reasoning") or ""),
+                tools_used=list(tools_used),
+                lessons_applied=list(lessons_applied),
+            )
+        ]
 
     logger.warning("Detector exceeded MAX_TURNS without final output")
     return []

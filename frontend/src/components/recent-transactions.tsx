@@ -12,6 +12,8 @@ import {
   Tv,
   ArrowDownLeft,
   ArrowUpRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,7 +27,10 @@ interface Props {
   /** Incremented by the parent on every demo-transaction submission.
    *  A change triggers a refetch so the list reflects the new activity. */
   refreshKey?: number;
+  /** Max transactions fetched from the backend; drives the "Show more" ceiling. */
   limit?: number;
+  /** Collapsed default — the first N rows rendered before the user expands. */
+  collapsedCount?: number;
 }
 
 const CATEGORY_ICON: Record<string, typeof Coffee> = {
@@ -39,10 +44,16 @@ const CATEGORY_ICON: Record<string, typeof Coffee> = {
   entertainment: Tv,
 };
 
-export function RecentTransactions({ customerId, refreshKey = 0, limit = 8 }: Props) {
+export function RecentTransactions({
+  customerId,
+  refreshKey = 0,
+  limit = 8,
+  collapsedCount = 3,
+}: Props) {
   const [txns, setTxns] = useState<RecentTransaction[] | null>(null);
   const { t } = useT();
   const [flashId, setFlashId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -87,7 +98,7 @@ export function RecentTransactions({ customerId, refreshKey = 0, limit = 8 }: Pr
           </p>
         ) : (
           <ul className="flex flex-col gap-1">
-            {txns.map((tx) => {
+            {(expanded ? txns : txns.slice(0, collapsedCount)).map((tx) => {
               const Icon = CATEGORY_ICON[tx.category] ?? ShoppingBag;
               const isInflow = tx.amount > 0;
               const DirIcon = isInflow ? ArrowDownLeft : ArrowUpRight;
@@ -128,6 +139,25 @@ export function RecentTransactions({ customerId, refreshKey = 0, limit = 8 }: Pr
               );
             })}
           </ul>
+        )}
+        {txns && txns.length > collapsedCount && (
+          <button
+            type="button"
+            onClick={() => setExpanded((v) => !v)}
+            className="mt-1 flex items-center justify-center gap-1 rounded-md py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            {expanded ? (
+              <>
+                <ChevronUp className="size-3" />
+                {t("recent_transactions_less")}
+              </>
+            ) : (
+              <>
+                <ChevronDown className="size-3" />
+                {t("recent_transactions_more", { count: String(txns.length - collapsedCount) })}
+              </>
+            )}
+          </button>
         )}
       </CardContent>
     </Card>

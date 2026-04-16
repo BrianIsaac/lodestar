@@ -85,6 +85,16 @@ const DICT = {
     en: "No transactions yet.",
     ko: "아직 거래가 없습니다.",
   },
+  recent_transactions_more: {
+    vi: "Xem thêm {count}",
+    en: "Show {count} more",
+    ko: "{count}개 더 보기",
+  },
+  recent_transactions_less: {
+    vi: "Thu gọn",
+    en: "Show less",
+    ko: "접기",
+  },
 
   // Demo panel
   demo_open: { vi: "Mô phỏng", en: "Simulate", ko: "시뮬레이션" },

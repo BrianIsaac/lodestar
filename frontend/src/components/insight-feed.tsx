@@ -116,9 +116,11 @@ export function InsightFeed({ customerId, refreshKey = 0 }: Props) {
       <div className="flex items-center justify-end">
         <StreamStatusBadge status={stream.status} />
       </div>
-      <Alert>
-        <Sparkles />
-        <AlertDescription>{t("compliance_banner")}</AlertDescription>
+      <Alert className="py-2">
+        <Sparkles className="size-3.5" />
+        <AlertDescription className="text-[11px] leading-snug">
+          {t("compliance_banner")}
+        </AlertDescription>
       </Alert>
       <div className={cardGridClass}>
         {cards.map((card) => {

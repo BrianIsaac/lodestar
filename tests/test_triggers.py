@@ -130,27 +130,6 @@ class TestTriggerRules:
         assert TriggerType.LIFE_EVENT in types or TriggerType.PAYDAY_DETECTED in types
 
 
-class TestBackgroundAgent:
-    """Test the background agent cycle against seeded data."""
-
-    async def test_generates_insight_cards(self) -> None:
-        from lodestar.agents.background import run_background_cycle
-        from lodestar.database import get_db
-
-        db = await get_db()
-        await db.execute("DELETE FROM insight_cards")
-        await db.commit()
-        await db.close()
-
-        cards = await run_background_cycle()
-        assert len(cards) >= 1, f"Expected at least 1 insight card, got {len(cards)}"
-
-        for card in cards:
-            assert card.insight_id.startswith("INS-")
-            assert card.customer_id in {"C001", "C002", "C003", "C004", "C005"}
-            assert card.compliance_class != "advice"
-
-
 class TestComplianceFilter:
     """Test compliance classification and gating."""
 

@@ -11,7 +11,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
-from lodestar.agents.background import run_background_cycle
 from lodestar.config import settings
 from lodestar.database import get_db, init_db
 from lodestar.models import (
@@ -117,7 +116,8 @@ async def get_insight_feed(
 ) -> InsightFeed:
     """Ranked insight cards for the customer's feed tab.
 
-    Cards are pre-localised at write time (see background.py templates).
+    Cards are authored by the detector agent in all supported locales at
+    write time, so `/feed` is a pure SELECT with no runtime translation.
     This endpoint just reads the stored JSON and promotes the requested
     language into the flat `title` / `summary` fields — no LLM calls,
     no cache layer needed.

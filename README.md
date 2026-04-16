@@ -49,23 +49,6 @@ Toggle Vi → En → Ko in the header; every card, hint, chip, nav label, and di
 
 ---
 
-## Demo Flow
-
-Full 5-minute flow verified end-to-end via Playwright (screenshots in `docs/`):
-
-| Act | Time | Beat |
-|---|---|---|
-| 1 | 30s | Empty feed + silent on coffee |
-| 2 | 90s | Three baby signals → one synthesised life-event card |
-| 3 | 60s | Three chip routings: products (Shinhan Health+, Edu Care…) / plan (pre-filled goal + scenario simulator) / chat (drill-down with `product_search` tool-use) |
-| 4 | 90s | Engage via chat → lesson stored → re-inject → `lessons_applied=1` and new card weaves in the remembered context |
-| 5 | 30s | Vi/En/Ko toggle + app ↔ web layout flip |
-| 6 | 10s | Reset demo → clean state for the next judge |
-
-Narration script and "if they ask" fallbacks in [docs/DEMO.md](docs/DEMO.md) *(placeholder — see `plans/` for current notes)*.
-
----
-
 ## Architecture
 
 ### Request paths

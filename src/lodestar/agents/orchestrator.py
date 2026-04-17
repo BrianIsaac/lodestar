@@ -8,6 +8,7 @@ LLM response for novel queries.
 import asyncio
 import json
 import logging
+from collections import Counter
 
 from openai import AsyncOpenAI
 
@@ -447,7 +448,12 @@ async def chat(
         # can swap the bubble without a round-trip. Mirrors the detector
         # pattern: tools stripped, response_format=json_object, bumped
         # max_tokens. The user_message_i18n field is also authored here
-        # so the user bubble can swap on toggle too.
+        # so the user bubble can swap on toggle too. max_tokens is set
+        # to 3072 (not 2048) because the payload = content_i18n in three
+        # locales + user_message_i18n in three locales + any tool echo,
+        # and truncation mid-JSON would force the model to take shortcuts
+        # (e.g. copy the original text into every locale of the user
+        # bundle instead of translating) to stay inside the budget.
         _raw_user = messages[-1].content if messages else ""
         api_messages.append({
             "role": "user",
@@ -460,12 +466,22 @@ async def chat(
                 "}\n"
                 "`content_i18n` is your assistant reply in all three locales, "
                 "consistent in meaning and tone across them. "
-                "`user_message_i18n` must contain the user's exact last "
-                "message translated verbatim into each locale — do not "
-                "rephrase, summarise or answer the user's message inside "
-                "this field; preserve register, abbreviations and informal "
-                "phrasing. Echo the original locale's value unchanged. "
-                f"The user's last message was: {_raw_user!r}."
+                "\n\n"
+                f"`user_message_i18n` must contain the user's exact last "
+                f"message. The user wrote in {language!r}, so the {language!r} "
+                f"value MUST be the verbatim original text. The other two "
+                f"values MUST be genuine translations of that text into the "
+                f"other two locales — preserve register and tone, but do not "
+                f"rephrase or answer. NEVER copy source text into a locale "
+                f"that uses a different script or language (e.g. do not put "
+                f"Korean Hangul into the \"vi\" or \"en\" values). All three "
+                f"values must be non-empty.\n"
+                f"Example: if language is \"ko\" and the user wrote "
+                f"\"안녕\", then user_message_i18n must be "
+                f'{{"vi": "Xin chào", "en": "Hello", "ko": "안녕"}}. '
+                f"\n\n"
+                f"The user's last message (already in {language!r}) was: "
+                f"{_raw_user!r}."
             ),
         })
 
@@ -474,7 +490,7 @@ async def chat(
                 model=settings.llm_model,
                 messages=api_messages,
                 temperature=0.3,
-                max_tokens=2048,
+                max_tokens=3072,
                 response_format={"type": "json_object"},
             ),
             timeout=settings.llm_timeout,
@@ -513,6 +529,31 @@ async def chat(
                 v = user_i18n_raw.get(lang)
                 if isinstance(v, str) and v.strip():
                     user_message_i18n[lang] = v
+        # Degenerate-translation guard: Qwen3 sometimes copies the source
+        # text verbatim into one or more locales instead of translating —
+        # e.g. the Korean original ends up in the `vi` key. If the same
+        # value appears in ≥ 2 locales, at least one of those is a failed
+        # translation (two distinct locales cannot genuinely share the
+        # same non-trivial translation unless the source was trivially
+        # short). Drop the duplicated entries entirely rather than leave
+        # stale copy in a locale that uses a different script; render
+        # falls back to the canonical `content` field in those locales.
+        if len(user_message_i18n) >= 2 and _raw_user.strip():
+            freq = Counter(user_message_i18n.values())
+            dup_values = {v for v, c in freq.items() if c >= 2}
+            if dup_values:
+                logger.warning(
+                    "orchestrator produced duplicate values across locales "
+                    "for user_message_i18n (%d dup, %d total) — dropping "
+                    "the failed translations",
+                    sum(c for c in freq.values() if c >= 2),
+                    len(user_message_i18n),
+                )
+                user_message_i18n = {
+                    k: v
+                    for k, v in user_message_i18n.items()
+                    if v not in dup_values
+                }
         # Always ensure the original locale reflects the verbatim user text.
         if _raw_user:
             user_message_i18n.setdefault(language, _raw_user)

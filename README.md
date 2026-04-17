@@ -51,6 +51,19 @@ Toggle Vi → En → Ko in the header; every card, hint, chip, nav label, and di
 
 ## Run the demo
 
+**Live deployment** (no local setup required):
+
+- Frontend: <http://43.98.179.20:3000/?demo=1>
+- Backend API: <http://43.98.179.20:8000>
+
+The `?demo=1` flag on the frontend URL reveals the Simulate floating
+button. Walk through the narrative below against the live instance —
+the backend runs on Alibaba Cloud ECS with Qwen via DashScope.
+
+---
+
+### Run locally instead
+
 Requires: Python 3.13, `uv`, `bun` (or `pnpm`), Docker + Ollama with `qwen3:14b` pulled.
 
 ```bash

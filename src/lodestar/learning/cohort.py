@@ -39,35 +39,42 @@ async def aggregate_to_cohort(
     """
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT * FROM cohort_insights WHERE cohort_key = ? AND pattern_type = ?",
-            (cohort_key, pattern_type),
-        )
-        existing = await cursor.fetchone()
-
-        if existing:
-            new_count = existing["supporting_count"] + 1
-            new_confidence = (existing["confidence"] * existing["supporting_count"] + confidence) / new_count
-
-            await db.execute(
-                """UPDATE cohort_insights
-                   SET supporting_count = ?, confidence = ?, insight = ?
-                   WHERE cohort_key = ? AND pattern_type = ?""",
-                (new_count, new_confidence, lesson_insight, cohort_key, pattern_type),
+        # BEGIN IMMEDIATE serialises concurrent aggregators across
+        # dismiss/chat fires for the same cohort. Without it two coroutines
+        # both reading "no existing row" would both INSERT and collide on
+        # the (cohort_key, pattern_type) PK, or both UPDATE a stale count
+        # and lose one increment.
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT * FROM cohort_insights WHERE cohort_key = ? AND pattern_type = ?",
+                (cohort_key, pattern_type),
             )
-            await db.commit()
+            existing = await cursor.fetchone()
 
-            if new_count >= _min_customers():
-                return CohortInsight(
-                    cohort_key=cohort_key,
-                    pattern_type=pattern_type,
-                    category=category,
-                    insight=lesson_insight,
-                    confidence=new_confidence,
-                    supporting_count=new_count,
+            if existing:
+                new_count = existing["supporting_count"] + 1
+                new_confidence = (existing["confidence"] * existing["supporting_count"] + confidence) / new_count
+
+                await db.execute(
+                    """UPDATE cohort_insights
+                       SET supporting_count = ?, confidence = ?, insight = ?
+                       WHERE cohort_key = ? AND pattern_type = ?""",
+                    (new_count, new_confidence, lesson_insight, cohort_key, pattern_type),
                 )
-            return None
-        else:
+                await db.commit()
+
+                if new_count >= _min_customers():
+                    return CohortInsight(
+                        cohort_key=cohort_key,
+                        pattern_type=pattern_type,
+                        category=category,
+                        insight=lesson_insight,
+                        confidence=new_confidence,
+                        supporting_count=new_count,
+                    )
+                return None
+
             await db.execute(
                 """INSERT INTO cohort_insights
                    (cohort_key, pattern_type, category, insight, confidence, supporting_count)
@@ -76,6 +83,9 @@ async def aggregate_to_cohort(
             )
             await db.commit()
             return None
+        except Exception:
+            await db.rollback()
+            raise
 
     finally:
         await db.close()

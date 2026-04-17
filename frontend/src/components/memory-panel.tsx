@@ -31,6 +31,9 @@ export function MemoryPanel({ customerId }: Props) {
   const [status, setStatus] = useState<"idle" | "loading" | "error">("loading");
   const cancelledRef = useRef(false);
 
+  // Refresh path — the button click needs a synchronous setStatus("loading")
+  // to show the spinner, so it can't live inside the mount effect where
+  // react-hooks/set-state-in-effect would flag it.
   const load = useCallback(async () => {
     setStatus("loading");
     try {
@@ -44,15 +47,28 @@ export function MemoryPanel({ customerId }: Props) {
     }
   }, [customerId]);
 
+  // Mount fetch — status is already "loading" from useState, so the only
+  // setState calls happen after an await. That satisfies
+  // react-hooks/set-state-in-effect (post-await setState is allowed).
   useEffect(() => {
     cancelledRef.current = false;
-    load();
+    (async () => {
+      try {
+        const data = await fetchMemory(customerId);
+        if (cancelledRef.current) return;
+        setSnapshot(data);
+        setStatus("idle");
+      } catch {
+        if (cancelledRef.current) return;
+        setStatus("error");
+      }
+    })();
     return () => {
       // Prevent setState after unmount under React 19 strict-mode
       // double-invocation.
       cancelledRef.current = true;
     };
-  }, [load]);
+  }, [customerId]);
 
   const lessons = snapshot?.lessons ?? [];
   const reflections = snapshot?.reflections ?? [];

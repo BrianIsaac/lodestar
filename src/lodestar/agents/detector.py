@@ -392,9 +392,12 @@ async def _execute_tool(
         if name == "get_customer_profile":
             return json.dumps(await _get_customer_profile(customer_id), ensure_ascii=False)
         return json.dumps({"error": f"Unknown tool: {name}"})
-    except Exception as exc:
+    except Exception:
+        # Class name + message stay in the log; only an anonymous marker
+        # reaches the LLM's next-turn context so a DB path or internal
+        # hostname in str(exc) cannot leak into chat synthesis.
         logger.exception("Detector tool %s failed", name)
-        return json.dumps({"error": f"{type(exc).__name__}: {exc}"})
+        return json.dumps({"error": "tool unavailable"}, ensure_ascii=False)
 
 
 def _client() -> AsyncOpenAI:

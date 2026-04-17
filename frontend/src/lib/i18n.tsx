@@ -581,6 +581,11 @@ const DICT = {
     ko: "상품 검색…",
   },
   products_search_button: { vi: "Tìm", en: "Search", ko: "검색" },
+  products_searching: {
+    vi: "Đang tìm sản phẩm",
+    en: "Searching products",
+    ko: "상품 검색 중",
+  },
   products_empty_title: {
     vi: "Không tìm thấy sản phẩm",
     en: "No products found",

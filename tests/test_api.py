@@ -118,3 +118,167 @@ class TestSSEStream:
 
         routes = [r.path for r in _app.routes]
         assert "/stream/{customer_id}" in routes
+
+
+class TestChatHistory:
+    """History endpoint reconstructs the interaction thread."""
+
+    async def test_unknown_insight_returns_empty_list(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.get("/chat/INS-nonexistent/history")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_history_replay_with_tool_chips_and_i18n(
+        self, client: AsyncClient
+    ) -> None:
+        """A stored interaction with an assistant turn that used tools and
+        has tri-lingual content round-trips through /history with the tool
+        chip injected before the assistant bubble and content_i18n preserved.
+        """
+        from lodestar.database import get_db
+        from lodestar.learning.interactions import record_interaction
+
+        # Insert a placeholder card so the FK on interactions is satisfied.
+        insight_id = "INS-history-test"
+        db = await get_db()
+        try:
+            await db.execute(
+                """INSERT INTO insight_cards
+                   (insight_id, customer_id, title, summary, severity,
+                    suggested_actions, compliance_class, priority_score,
+                    created_at, dismissed)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (
+                    insight_id,
+                    "C001",
+                    "history test",
+                    "history test summary",
+                    "info",
+                    "[]",
+                    "information",
+                    0.5,
+                    "2026-04-17T00:00:00",
+                ),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+
+        await record_interaction(
+            customer_id="C001",
+            insight_id=insight_id,
+            messages=[
+                # Non-chat roles must be filtered out by the endpoint.
+                {"role": "event", "content": "transaction detected"},
+                {"role": "user", "content": "Vì sao tôi nhận được thẻ này?"},
+                {
+                    "role": "assistant",
+                    "content": "Here is why.",
+                    "content_i18n": {
+                        "vi": "Đây là lý do.",
+                        "en": "Here is why.",
+                        "ko": "이유는 이렇습니다.",
+                    },
+                    "tool_calls": ["spending_analysis"],
+                },
+            ],
+        )
+
+        resp = await client.get(f"/chat/{insight_id}/history")
+        assert resp.status_code == 200
+        msgs = resp.json()
+
+        roles = [m["role"] for m in msgs]
+        assert roles == ["user", "tool", "assistant"], roles
+        assert msgs[1]["content"] == "spending_analysis"
+        assert msgs[2]["content_i18n"]["ko"] == "이유는 이렇습니다."
+        assert msgs[2]["content_i18n"]["vi"] == "Đây là lý do."
+
+        # Cleanup — FK ordering: interactions → insight_cards.
+        db = await get_db()
+        try:
+            await db.execute(
+                "DELETE FROM interactions WHERE insight_id = ?", (insight_id,)
+            )
+            await db.execute(
+                "DELETE FROM insight_cards WHERE insight_id = ?", (insight_id,)
+            )
+            await db.commit()
+        finally:
+            await db.close()
+
+
+class TestInteractionConcurrency:
+    """append_to_interaction must serialise concurrent writers — the
+    BEGIN IMMEDIATE guard in interactions.py means both appends are
+    preserved instead of racing on the messages blob."""
+
+    async def test_concurrent_appends_preserve_all_entries(self) -> None:
+        import asyncio
+
+        from lodestar.database import get_db
+        from lodestar.learning.interactions import (
+            append_to_interaction,
+            get_interaction_for_insight,
+            record_interaction,
+        )
+
+        insight_id = "INS-concur-test"
+        db = await get_db()
+        try:
+            await db.execute(
+                """INSERT INTO insight_cards
+                   (insight_id, customer_id, title, summary, severity,
+                    suggested_actions, compliance_class, priority_score,
+                    created_at, dismissed)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)""",
+                (
+                    insight_id,
+                    "C001",
+                    "concur test",
+                    "concur test summary",
+                    "info",
+                    "[]",
+                    "information",
+                    0.5,
+                    "2026-04-17T00:00:00",
+                ),
+            )
+            await db.commit()
+        finally:
+            await db.close()
+
+        await record_interaction(
+            customer_id="C001", insight_id=insight_id, messages=[]
+        )
+
+        N = 10
+        await asyncio.gather(
+            *[
+                append_to_interaction(
+                    insight_id, {"role": "event", "content": f"entry {i}"}
+                )
+                for i in range(N)
+            ]
+        )
+
+        record = await get_interaction_for_insight(insight_id)
+        assert record is not None
+        contents = {m["content"] for m in record["messages"]}
+        assert contents == {f"entry {i}" for i in range(N)}, (
+            f"lost entries under concurrency: {contents}"
+        )
+
+        db = await get_db()
+        try:
+            await db.execute(
+                "DELETE FROM interactions WHERE insight_id = ?", (insight_id,)
+            )
+            await db.execute(
+                "DELETE FROM insight_cards WHERE insight_id = ?", (insight_id,)
+            )
+            await db.commit()
+        finally:
+            await db.close()

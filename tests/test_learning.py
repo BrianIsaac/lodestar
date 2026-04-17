@@ -240,6 +240,47 @@ class TestCohort:
         assert len(insights) >= 1
         assert insights[0].pattern_type == "seasonal_transport"
 
+    async def test_concurrent_aggregates_dont_lose_count(self) -> None:
+        """BEGIN IMMEDIATE in aggregate_to_cohort must serialise concurrent
+        upserts so the supporting_count reaches N after N concurrent calls
+        for a fresh cohort key. Without the lock, two coroutines reading
+        "no existing row" both INSERT and collide on the PK."""
+        import asyncio
+
+        from lodestar.learning.cohort import aggregate_to_cohort
+
+        N = 6
+        results = await asyncio.gather(
+            *[
+                aggregate_to_cohort(
+                    lesson_conditions=f"Pattern {i}",
+                    lesson_insight="Concurrent dining pattern",
+                    pattern_type="concurrent_dining",
+                    category="food",
+                    cohort_key="concur_cohort",
+                    confidence=0.80,
+                )
+                for i in range(N)
+            ],
+            return_exceptions=True,
+        )
+
+        errors = [r for r in results if isinstance(r, Exception)]
+        assert not errors, f"race produced errors: {errors}"
+
+        db = await get_db()
+        cursor = await db.execute(
+            "SELECT supporting_count FROM cohort_insights "
+            "WHERE cohort_key = 'concur_cohort' AND pattern_type = 'concurrent_dining'"
+        )
+        row = await cursor.fetchone()
+        await db.close()
+        assert row is not None
+        assert row["supporting_count"] == N, (
+            f"expected supporting_count={N} after {N} concurrent aggregates, "
+            f"got {row['supporting_count']}"
+        )
+
     async def test_cohort_strips_customer_id(self) -> None:
         from lodestar.learning.cohort import aggregate_to_cohort
 

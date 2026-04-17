@@ -1,12 +1,15 @@
 """Generate and seed all synthetic data into SQLite."""
 
 import asyncio
+import logging
 
 from lodestar.data.synthetic import (
     generate_transactions_for_customer,
     plant_life_event,
 )
 from lodestar.database import get_db, init_db
+
+logger = logging.getLogger(__name__)
 
 CUSTOMERS = [
     {
@@ -152,7 +155,9 @@ async def seed() -> None:
         row = await count.fetchone()
         cust_count = await db.execute("SELECT COUNT(*) FROM customers")
         cust_row = await cust_count.fetchone()
-        print(f"Seeded {cust_row[0]} customers with {row[0]} transactions")
+        tx_n = row[0] if row else 0
+        cust_n = cust_row[0] if cust_row else 0
+        logger.info("Seeded %d customers with %d transactions", cust_n, tx_n)
 
     finally:
         await db.close()

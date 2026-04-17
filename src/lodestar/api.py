@@ -53,7 +53,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         embed_texts(["warmup"])
         logger.info("Embedder warmed")
     except Exception:
-        logger.exception("Embedder warmup failed")
+        # App stays alive on warmup failure — first real request will
+        # pay the load cost. WARNING (not ERROR) is the right signal:
+        # we are degraded but serving.
+        logger.warning("Embedder warmup failed", exc_info=True)
 
     db = await get_db()
     try:
@@ -990,6 +993,12 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
         account_row = await cursor.fetchone()
         account_id = account_row["account_id"] if account_row else body.customer_id
 
+        # Cap both merchant and description before they reach the DB so a
+        # runaway client payload cannot bloat the transactions table.
+        # Request body is already unbounded at the ASGI layer; this is the
+        # application-level guard.
+        merchant = (body.merchant or "")[:200]
+        description = (body.description or body.merchant or "")[:500]
         await db.execute(
             """INSERT INTO transactions
                (transaction_id, customer_id, account_id, date, amount, category,
@@ -1002,8 +1011,8 @@ async def inject_demo_transaction(body: DemoTransactionRequest) -> dict:
                 today,
                 body.amount,
                 body.category,
-                body.merchant,
-                body.description or body.merchant,
+                merchant,
+                description,
                 body.entity,
             ),
         )

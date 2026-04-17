@@ -38,7 +38,7 @@ GUIDANCE_PATTERNS = [
     r"(?i)nên thử",
     # English
     r"(?i)you (might|could|may) (consider|want to)",
-    r"(?i)consider",
+    r"(?i)\bconsider\b",
     r"(?i)tip:",
     r"(?i)it (might|may) help to",
     # Korean
@@ -151,7 +151,10 @@ def apply_compliance_multilingual(
 
     gated: dict[str, str] = {}
     for lang, text in texts_by_lang.items():
-        if not isinstance(text, str):
+        if not isinstance(text, str) or not text:
+            # Mirrors the classification-loop guard. Without the empty
+            # check, a locale stored as "" would receive a refusal or
+            # disclaimer appended to nothing.
             continue
         resolved = lang if lang in DISCLAIMERS else "vi"
         if worst == ComplianceClass.ADVICE:

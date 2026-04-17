@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     api_port: int = 8000
     background_poll_interval: int = 30
     cohort_min_customers: int = 5
+    llm_timeout: float = 120.0
 
     model_config = {"env_prefix": "COACH_"}
 

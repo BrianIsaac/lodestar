@@ -85,6 +85,8 @@ export function InsightFeed({
     return () => {
       cancelled = true;
     };
+    // t is stable per render; only refetch on data-source changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, refreshKey]);
 
   // Notify the parent whenever a new SSE card arrives so it can clear

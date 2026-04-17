@@ -3,7 +3,6 @@
 import type {
   ChatMessage,
   ChatResponse,
-  InsightCard,
   InsightFeed,
   ProductInfo,
   SavingsGoal,

@@ -80,72 +80,82 @@ async def add_or_evolve_lesson(lesson: CustomerLesson) -> CustomerLesson:
 
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT lesson_id, conditions, insight, confidence, importance, "
-            "times_evolved, supporting_months, embedding FROM lessons WHERE customer_id = ?",
-            (lesson.customer_id,),
-        )
-        existing = await cursor.fetchall()
+        # BEGIN IMMEDIATE serialises lesson evolution across concurrent
+        # dismiss + chat fires for the same customer. Without it two
+        # coroutines reading the same snapshot of lessons can both decide
+        # the same existing lesson is the best match and race on UPDATE,
+        # silently overwriting one evolution.
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT lesson_id, conditions, insight, confidence, importance, "
+                "times_evolved, supporting_months, embedding FROM lessons WHERE customer_id = ?",
+                (lesson.customer_id,),
+            )
+            existing = await cursor.fetchall()
 
-        best_match = None
-        best_sim = 0.0
+            best_match = None
+            best_sim = 0.0
 
-        for row in existing:
-            if row["embedding"]:
-                existing_emb = _unpack_embedding(row["embedding"])
-                sim = _cosine_similarity(embedding, existing_emb)
-                if sim > best_sim:
-                    best_sim = sim
-                    best_match = row
+            for row in existing:
+                if row["embedding"]:
+                    existing_emb = _unpack_embedding(row["embedding"])
+                    sim = _cosine_similarity(embedding, existing_emb)
+                    if sim > best_sim:
+                        best_sim = sim
+                        best_match = row
 
-        if best_match and best_sim >= SIMILARITY_THRESHOLD:
-            merged_conditions = f"{best_match['conditions']}; {lesson.conditions}"
-            merged_insight = f"{best_match['insight']}. {lesson.insight}"
-            new_confidence = min(1.0, best_match["confidence"] + 0.1)
-            new_evolved = best_match["times_evolved"] + 1
+            if best_match and best_sim >= SIMILARITY_THRESHOLD:
+                merged_conditions = f"{best_match['conditions']}; {lesson.conditions}"
+                merged_insight = f"{best_match['insight']}. {lesson.insight}"
+                new_confidence = min(1.0, best_match["confidence"] + 0.1)
+                new_evolved = best_match["times_evolved"] + 1
 
-            existing_months = json.loads(best_match["supporting_months"] or "[]")
-            merged_months = list(set(existing_months + lesson.supporting_months))
+                existing_months = json.loads(best_match["supporting_months"] or "[]")
+                merged_months = list(set(existing_months + lesson.supporting_months))
 
-            merged_embedding = embed_texts([f"{merged_conditions} {merged_insight}"])[0]
-            merged_packed = _pack_embedding(merged_embedding)
+                merged_embedding = embed_texts([f"{merged_conditions} {merged_insight}"])[0]
+                merged_packed = _pack_embedding(merged_embedding)
+
+                await db.execute(
+                    """UPDATE lessons SET conditions = ?, insight = ?, confidence = ?,
+                       times_evolved = ?, supporting_months = ?, embedding = ?
+                       WHERE lesson_id = ?""",
+                    (
+                        merged_conditions, merged_insight, new_confidence,
+                        new_evolved, json.dumps(merged_months), merged_packed,
+                        best_match["lesson_id"],
+                    ),
+                )
+                await db.commit()
+
+                lesson.lesson_id = best_match["lesson_id"]
+                lesson.conditions = merged_conditions
+                lesson.insight = merged_insight
+                lesson.confidence = new_confidence
+                lesson.times_evolved = new_evolved
+                return lesson
+
+            lesson.lesson_id = lesson.lesson_id or f"L-{uuid.uuid4().hex[:8]}"
+            lesson.embedding = packed
 
             await db.execute(
-                """UPDATE lessons SET conditions = ?, insight = ?, confidence = ?,
-                   times_evolved = ?, supporting_months = ?, embedding = ?
-                   WHERE lesson_id = ?""",
+                """INSERT INTO lessons
+                   (lesson_id, customer_id, conditions, insight, error_type,
+                    confidence, importance, times_evolved, supporting_months, embedding)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
-                    merged_conditions, merged_insight, new_confidence,
-                    new_evolved, json.dumps(merged_months), merged_packed,
-                    best_match["lesson_id"],
+                    lesson.lesson_id, lesson.customer_id, lesson.conditions,
+                    lesson.insight, lesson.error_type, lesson.confidence,
+                    lesson.importance, lesson.times_evolved,
+                    json.dumps(lesson.supporting_months), packed,
                 ),
             )
             await db.commit()
-
-            lesson.lesson_id = best_match["lesson_id"]
-            lesson.conditions = merged_conditions
-            lesson.insight = merged_insight
-            lesson.confidence = new_confidence
-            lesson.times_evolved = new_evolved
             return lesson
-
-        lesson.lesson_id = lesson.lesson_id or f"L-{uuid.uuid4().hex[:8]}"
-        lesson.embedding = packed
-
-        await db.execute(
-            """INSERT INTO lessons
-               (lesson_id, customer_id, conditions, insight, error_type,
-                confidence, importance, times_evolved, supporting_months, embedding)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                lesson.lesson_id, lesson.customer_id, lesson.conditions,
-                lesson.insight, lesson.error_type, lesson.confidence,
-                lesson.importance, lesson.times_evolved,
-                json.dumps(lesson.supporting_months), packed,
-            ),
-        )
-        await db.commit()
-        return lesson
+        except Exception:
+            await db.rollback()
+            raise
 
     finally:
         await db.close()

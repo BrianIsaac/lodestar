@@ -76,6 +76,8 @@ export function RecentTransactions({
     return () => {
       cancelled = true;
     };
+    // t is stable per render; only refetch on data-source changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId, refreshKey, limit]);
 
   return (

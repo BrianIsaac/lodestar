@@ -44,6 +44,19 @@ class TestRagPipeline:
         has_credit_card = any(r.product_type == "credit_card" for r in results)
         assert has_credit_card, f"Expected credit card in results, got: {[r.product_type for r in results]}"
 
+    def test_korean_credit_card_query(self) -> None:
+        """bge-m3 is multilingual — a Korean query must retrieve the same
+        Vietnamese catalogue entries as the Vi/En queries above."""
+        from lodestar.rag.retriever import search_products
+
+        results = search_products("신용카드")
+        assert len(results) > 0, "Korean query returned no products"
+        has_credit_card = any(r.product_type == "credit_card" for r in results)
+        assert has_credit_card, (
+            f"Expected credit card for Korean query, got: "
+            f"{[r.product_type for r in results]}"
+        )
+
     def test_payload_filter_by_type(self) -> None:
         from lodestar.rag.retriever import search_products
 

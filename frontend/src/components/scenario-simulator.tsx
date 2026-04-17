@@ -134,9 +134,13 @@ export function ScenarioSimulator({ customerId }: Props) {
         <CardContent>
           <form onSubmit={run}>
             <FieldGroup>
-              <Field role="radiogroup" aria-label={t("sim_scenario_label")}>
-                <FieldLabel>{t("sim_scenario_label")}</FieldLabel>
+              <Field>
+                <FieldLabel id="sim-scenario-label">
+                  {t("sim_scenario_label")}
+                </FieldLabel>
                 <div
+                  role="radiogroup"
+                  aria-labelledby="sim-scenario-label"
                   className="flex flex-wrap gap-1.5"
                   onKeyDown={(e) => {
                     if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;

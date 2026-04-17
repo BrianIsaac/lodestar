@@ -5,6 +5,7 @@ pre-built workflow tools for known intents, falls back to direct
 LLM response for novel queries.
 """
 
+import asyncio
 import json
 import logging
 
@@ -358,12 +359,18 @@ async def chat(
         # serialise the full tool_calls payload; truncating mid-arguments
         # produces a malformed JSON string that the dispatcher below
         # cannot recover from, leaking a KeyError on required tool args.
-        response = await client.chat.completions.create(
-            model=settings.llm_model,
-            messages=api_messages,
-            tools=TOOL_DEFINITIONS,
-            temperature=0.7,
-            max_tokens=1024,
+        # The outer timeout caps a hung backend — without it an
+        # unresponsive Ollama would pin the ASGI coroutine for the full
+        # HTTP client default (often 600s) and starve other requests.
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=settings.llm_model,
+                messages=api_messages,
+                tools=TOOL_DEFINITIONS,
+                temperature=0.7,
+                max_tokens=1024,
+            ),
+            timeout=settings.llm_timeout,
         )
 
         choice = response.choices[0]
@@ -389,11 +396,14 @@ async def chat(
                         "tool_call args failed JSON parse for %s — marking failed",
                         tool_name,
                     )
+                    # Same anonymous marker the execution-failure branch
+                    # uses below — keeps the LLM's turn-2 context free of
+                    # internal parser detail that could be echoed back.
                     api_messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
                         "content": json.dumps(
-                            {"error": "arguments were not valid JSON"},
+                            {"error": "tool unavailable"},
                             ensure_ascii=False,
                         ),
                     })
@@ -459,12 +469,15 @@ async def chat(
             ),
         })
 
-        final = await client.chat.completions.create(
-            model=settings.llm_model,
-            messages=api_messages,
-            temperature=0.3,
-            max_tokens=2048,
-            response_format={"type": "json_object"},
+        final = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=settings.llm_model,
+                messages=api_messages,
+                temperature=0.3,
+                max_tokens=2048,
+                response_format={"type": "json_object"},
+            ),
+            timeout=settings.llm_timeout,
         )
         final_text = final.choices[0].message.content or "{}"
 

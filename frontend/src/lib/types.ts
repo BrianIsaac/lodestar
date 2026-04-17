@@ -49,6 +49,7 @@ export interface ChatResponse {
   message: ChatMessage;
   suggested_followups: string[];
   suggested_followups_i18n?: Record<string, string[]> | null;
+  user_message_i18n?: Record<string, string> | null;
   tool_calls?: string[];
 }
 

@@ -131,6 +131,14 @@ class ChatResponse(BaseModel):
     message: ChatMessage
     suggested_followups: list[str] = Field(default_factory=list)
     suggested_followups_i18n: dict[str, list[str]] | None = None
+    user_message_i18n: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Tri-lingual verbatim translation of the user's last message, "
+            "authored by the orchestrator's final JSON turn. Lets the client "
+            "swap the user bubble on language toggle without a round-trip."
+        ),
+    )
     tool_calls: list[str] = Field(
         default_factory=list,
         description=(

@@ -109,7 +109,20 @@ export function DrillDownChat({
         content: name,
         chart_spec: null,
       }));
-      setMessages((xs) => [...xs, ...toolChips, resp.message]);
+      // Patch the in-memory user bubble with the verbatim-translated
+      // bundle so a language toggle swaps the user text too. Without
+      // this, only the assistant reply swaps; the user bubble stays
+      // in the original locale until a page reload re-fetches /history.
+      setMessages((xs) => {
+        const patched = resp.user_message_i18n
+          ? xs.map((m, i) =>
+              i === xs.length - 1 && m.role === "user"
+                ? { ...m, content_i18n: resp.user_message_i18n ?? null }
+                : m
+            )
+          : xs;
+        return [...patched, ...toolChips, resp.message];
+      });
       if (resp.suggested_followups_i18n) {
         setFollowupsI18n(resp.suggested_followups_i18n);
       } else if (resp.suggested_followups?.length) {

@@ -466,12 +466,18 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         return out
 
     assistant_content = (response.message.content or "")[:800]
+    # Surface the tri-lingual user bundle back to the client so the in-memory
+    # user bubble can swap on language toggle. Without this the frontend only
+    # has the raw text it submitted, and the Vi/En/Ko translations stored in
+    # the interaction ledger are only visible after a page reload.
+    user_i18n_capped = _capped(user_message_i18n) or None
+    response.user_message_i18n = user_i18n_capped
     await append_to_interaction(
         insight_id,
         {
             "role": "user",
             "content": body.message[:800],
-            "content_i18n": _capped(user_message_i18n) or None,
+            "content_i18n": user_i18n_capped,
         },
     )
     await append_to_interaction(
@@ -479,7 +485,7 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         {
             "role": "assistant",
             "content": assistant_content,
-            "content_i18n": _capped(response.message.content_i18n) or None,
+            "content_i18n": _capped(response.message.content_i18n) or None,  # noqa: E501
             # Persisting the tool call names on the assistant entry lets
             # the history endpoint reconstruct the visible tool chips on
             # replay — otherwise a returning visitor sees a clean bubble

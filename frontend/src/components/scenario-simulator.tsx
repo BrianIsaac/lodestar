@@ -136,7 +136,25 @@ export function ScenarioSimulator({ customerId }: Props) {
             <FieldGroup>
               <Field role="radiogroup" aria-label={t("sim_scenario_label")}>
                 <FieldLabel>{t("sim_scenario_label")}</FieldLabel>
-                <div className="flex flex-wrap gap-1.5">
+                <div
+                  className="flex flex-wrap gap-1.5"
+                  onKeyDown={(e) => {
+                    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+                    e.preventDefault();
+                    const idx = SCENARIO_OPTIONS.findIndex((o) => o.id === scenario);
+                    const delta = e.key === "ArrowRight" ? 1 : -1;
+                    const next = SCENARIO_OPTIONS[
+                      (idx + delta + SCENARIO_OPTIONS.length) %
+                        SCENARIO_OPTIONS.length
+                    ];
+                    changeScenario(next.id);
+                    // Move focus to match the new selection — roving tabindex.
+                    const btn = document.querySelector<HTMLButtonElement>(
+                      `[data-scenario-radio="${next.id}"]`,
+                    );
+                    btn?.focus();
+                  }}
+                >
                   {SCENARIO_OPTIONS.map((opt) => {
                     const active = scenario === opt.id;
                     return (
@@ -145,6 +163,8 @@ export function ScenarioSimulator({ customerId }: Props) {
                         type="button"
                         role="radio"
                         aria-checked={active}
+                        tabIndex={active ? 0 : -1}
+                        data-scenario-radio={opt.id}
                         onClick={() => changeScenario(opt.id)}
                         className={cn(
                           "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
@@ -159,7 +179,7 @@ export function ScenarioSimulator({ customerId }: Props) {
                   })}
                 </div>
               </Field>
-              {scenario === "home_purchase" && (
+              {scenario === "home_purchase" ? (
                 <>
                   <Field>
                     <FieldLabel htmlFor="sim-price">{t("sim_price")}</FieldLabel>
@@ -208,8 +228,8 @@ export function ScenarioSimulator({ customerId }: Props) {
                     </Field>
                   </div>
                 </>
-              )}
-              {scenario === "career_change" && (
+              ) : null}
+              {scenario === "career_change" ? (
                 <Field>
                   <FieldLabel htmlFor="sim-new-income">
                     {t("sim_field_new_income")}
@@ -223,8 +243,8 @@ export function ScenarioSimulator({ customerId }: Props) {
                   />
                   <FieldDescription>{t("sim_field_new_income_hint")}</FieldDescription>
                 </Field>
-              )}
-              {scenario === "new_baby" && (
+              ) : null}
+              {scenario === "new_baby" ? (
                 <Field>
                   <FieldLabel htmlFor="sim-baby-cost">
                     {t("sim_field_baby_cost")}
@@ -238,8 +258,8 @@ export function ScenarioSimulator({ customerId }: Props) {
                   />
                   <FieldDescription>{t("sim_field_baby_cost_hint")}</FieldDescription>
                 </Field>
-              )}
-              {scenario === "marriage" && (
+              ) : null}
+              {scenario === "marriage" ? (
                 <div className="grid grid-cols-2 gap-3">
                   <Field>
                     <FieldLabel htmlFor="sim-partner-income">
@@ -272,7 +292,7 @@ export function ScenarioSimulator({ customerId }: Props) {
                     </FieldDescription>
                   </Field>
                 </div>
-              )}
+              ) : null}
             </FieldGroup>
             <Button type="submit" disabled={loading} className="mt-4 w-full">
               {loading ? (
@@ -291,14 +311,14 @@ export function ScenarioSimulator({ customerId }: Props) {
         </CardContent>
       </Card>
 
-      {error && (
+      {error ? (
         <Alert variant="destructive">
           <AlertTitle>{t("sim_error_title")}</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      {result && <ScenarioResultView result={result} />}
+      {result ? <ScenarioResultView result={result} /> : null}
     </div>
   );
 }
@@ -332,7 +352,7 @@ function ScenarioResultView({ result }: { result: ScenarioResult }) {
               </div>
             </div>
           </div>
-          {result.risk_flags.length > 0 && (
+          {result.risk_flags.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
               {result.risk_flags.map((f) => (
                 <Badge key={f} variant="destructive">
@@ -340,7 +360,7 @@ function ScenarioResultView({ result }: { result: ScenarioResult }) {
                 </Badge>
               ))}
             </div>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 

@@ -72,16 +72,16 @@ export function MemoryPanel({ customerId }: Props) {
         {t("memory_description")}
       </p>
 
-      {status === "loading" && (
+      {status === "loading" ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Spinner className="size-4 text-primary" />
           {t("memory_loading")}
         </div>
-      )}
+      ) : null}
 
-      {status === "error" && (
+      {status === "error" ? (
         <p className="text-xs text-destructive">{t("memory_error")}</p>
-      )}
+      ) : null}
 
       {status === "idle" && snapshot ? (
         <>
@@ -93,7 +93,7 @@ export function MemoryPanel({ customerId }: Props) {
             </p>
           ) : null}
 
-          {lessons.length > 0 && (
+          {lessons.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               <h5 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("memory_section_lessons", { count: String(lessons.length) })}
@@ -104,9 +104,9 @@ export function MemoryPanel({ customerId }: Props) {
                 ))}
               </ul>
             </div>
-          )}
+          ) : null}
 
-          {reflections.length > 0 && (
+          {reflections.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               <h5 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("memory_section_reflections", {
@@ -119,9 +119,9 @@ export function MemoryPanel({ customerId }: Props) {
                 ))}
               </ul>
             </div>
-          )}
+          ) : null}
 
-          {cohort.length > 0 && (
+          {cohort.length > 0 ? (
             <div className="flex flex-col gap-1.5">
               <h5 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("memory_section_cohort", {
@@ -135,7 +135,7 @@ export function MemoryPanel({ customerId }: Props) {
                 ))}
               </ul>
             </div>
-          )}
+          ) : null}
         </>
       ) : null}
     </section>

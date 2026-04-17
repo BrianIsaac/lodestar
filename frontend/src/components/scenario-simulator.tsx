@@ -36,7 +36,7 @@ const ENTITY_META: Record<
   life: { icon: Shield, labelKey: "entity_life", colorClass: "text-chart-5" },
 };
 
-type ScenarioType = "home_purchase" | "career_change" | "new_baby";
+type ScenarioType = "home_purchase" | "career_change" | "new_baby" | "marriage";
 
 const SCENARIO_OPTIONS: {
   id: ScenarioType;
@@ -58,6 +58,11 @@ const SCENARIO_OPTIONS: {
     labelKey: "sim_scenario_baby",
     titleKey: "sim_card_title_baby",
   },
+  {
+    id: "marriage",
+    labelKey: "sim_scenario_marriage",
+    titleKey: "sim_card_title_marriage",
+  },
 ];
 
 export function ScenarioSimulator({ customerId }: Props) {
@@ -68,10 +73,20 @@ export function ScenarioSimulator({ customerId }: Props) {
   const [rate, setRate] = useState("7.5");
   const [newIncome, setNewIncome] = useState("16000000");
   const [babyCost, setBabyCost] = useState("8000000");
+  const [partnerIncome, setPartnerIncome] = useState("12000000");
+  const [weddingCost, setWeddingCost] = useState("200000000");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScenarioResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { lang, t } = useT();
+
+  function changeScenario(next: ScenarioType) {
+    setScenario(next);
+    // Stale results from the previous scenario would otherwise stay visible
+    // below the form after a switch, misleading the user.
+    setResult(null);
+    setError(null);
+  }
 
   async function run(e: React.FormEvent) {
     e.preventDefault();
@@ -88,7 +103,12 @@ export function ScenarioSimulator({ customerId }: Props) {
             }
           : scenario === "career_change"
             ? { new_income: Number(newIncome) }
-            : { monthly_cost: Number(babyCost) };
+            : scenario === "new_baby"
+              ? { monthly_cost: Number(babyCost) }
+              : {
+                  partner_income: Number(partnerIncome),
+                  wedding_cost: Number(weddingCost),
+                };
 
       const res = await simulateScenario(customerId, scenario, parameters, lang);
       setResult(res);
@@ -114,8 +134,8 @@ export function ScenarioSimulator({ customerId }: Props) {
         <CardContent>
           <form onSubmit={run}>
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="sim-scenario">{t("sim_scenario_label")}</FieldLabel>
+              <Field role="radiogroup" aria-label={t("sim_scenario_label")}>
+                <FieldLabel>{t("sim_scenario_label")}</FieldLabel>
                 <div className="flex flex-wrap gap-1.5">
                   {SCENARIO_OPTIONS.map((opt) => {
                     const active = scenario === opt.id;
@@ -123,7 +143,9 @@ export function ScenarioSimulator({ customerId }: Props) {
                       <button
                         key={opt.id}
                         type="button"
-                        onClick={() => setScenario(opt.id)}
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => changeScenario(opt.id)}
                         className={cn(
                           "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
                           active
@@ -216,6 +238,40 @@ export function ScenarioSimulator({ customerId }: Props) {
                   />
                   <FieldDescription>{t("sim_field_baby_cost_hint")}</FieldDescription>
                 </Field>
+              )}
+              {scenario === "marriage" && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Field>
+                    <FieldLabel htmlFor="sim-partner-income">
+                      {t("sim_field_partner_income")}
+                    </FieldLabel>
+                    <Input
+                      id="sim-partner-income"
+                      type="number"
+                      value={partnerIncome}
+                      onChange={(e) => setPartnerIncome(e.target.value)}
+                      min={0}
+                    />
+                    <FieldDescription>
+                      {t("sim_field_partner_income_hint")}
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="sim-wedding-cost">
+                      {t("sim_field_wedding_cost")}
+                    </FieldLabel>
+                    <Input
+                      id="sim-wedding-cost"
+                      type="number"
+                      value={weddingCost}
+                      onChange={(e) => setWeddingCost(e.target.value)}
+                      min={0}
+                    />
+                    <FieldDescription>
+                      {t("sim_field_wedding_cost_hint")}
+                    </FieldDescription>
+                  </Field>
+                </div>
               )}
             </FieldGroup>
             <Button type="submit" disabled={loading} className="mt-4 w-full">

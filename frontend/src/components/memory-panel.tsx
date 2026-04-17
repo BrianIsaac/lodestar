@@ -63,7 +63,7 @@ export function MemoryPanel({ customerId }: Props) {
           size="sm"
           onClick={load}
           disabled={status === "loading"}
-          aria-label={t("memory_open")}
+          aria-label={t("memory_refresh")}
         >
           <RefreshCw className="size-3.5" />
         </Button>
@@ -83,13 +83,15 @@ export function MemoryPanel({ customerId }: Props) {
         <p className="text-xs text-destructive">{t("memory_error")}</p>
       )}
 
-      {status === "idle" && snapshot && (
+      {status === "idle" && snapshot ? (
         <>
-          {lessons.length === 0 && reflections.length === 0 && (
+          {lessons.length === 0 &&
+          reflections.length === 0 &&
+          cohort.length === 0 ? (
             <p className="rounded-md border border-dashed border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
               {t("memory_empty")}
             </p>
-          )}
+          ) : null}
 
           {lessons.length > 0 && (
             <div className="flex flex-col gap-1.5">
@@ -135,7 +137,7 @@ export function MemoryPanel({ customerId }: Props) {
             </div>
           )}
         </>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -180,11 +182,11 @@ function ReflectionRow({ reflection }: { reflection: MemoryReflection }) {
           {reflection.outcome_quality}
         </span>
       </div>
-      {reflection.lesson_extracted && (
+      {reflection.lesson_extracted ? (
         <Badge variant="default" className="shrink-0">
-          lesson
+          {t("memory_lesson_badge")}
         </Badge>
-      )}
+      ) : null}
     </li>
   );
 }

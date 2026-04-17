@@ -206,7 +206,6 @@ export interface MemoryCohortInsight {
   insight: string;
   confidence: number;
   supporting_count: number;
-  effectiveness: number;
 }
 
 export interface MemorySnapshot {

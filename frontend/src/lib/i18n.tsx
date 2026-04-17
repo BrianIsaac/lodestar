@@ -20,15 +20,22 @@ const DICT = {
     en: "Shinhan SOL · Coach",
     ko: "신한 SOL · 코치",
   },
-  app_title: {
-    vi: "Shinhan Financial Coach",
-    en: "Shinhan Financial Coach",
-    ko: "신한 금융 코치",
+
+  // Error boundaries
+  error_boundary_title: {
+    vi: "Đã xảy ra sự cố",
+    en: "Something went wrong",
+    ko: "오류가 발생했습니다",
   },
-  app_subtitle: {
-    vi: "SOL Vietnam — AI Personal Financial Coach",
-    en: "SOL Vietnam — AI Personal Financial Coach",
-    ko: "SOL 베트남 — AI 개인 금융 코치",
+  error_boundary_body: {
+    vi: "Coach không tải được màn hình này. Thử lại để tiếp tục.",
+    en: "Coach couldn't render this screen. Retry to continue.",
+    ko: "코치가 이 화면을 표시하지 못했습니다. 다시 시도해 주세요.",
+  },
+  error_boundary_retry: {
+    vi: "Thử lại",
+    en: "Retry",
+    ko: "다시 시도",
   },
 
   // Tabs
@@ -273,7 +280,12 @@ const DICT = {
     en: "Could not load Coach memory.",
     ko: "코치 메모리를 불러오지 못했습니다.",
   },
-  memory_close: { vi: "Đóng", en: "Close", ko: "닫기" },
+  memory_refresh: {
+    vi: "Làm mới bộ nhớ",
+    en: "Refresh memory",
+    ko: "메모리 새로 고침",
+  },
+  memory_lesson_badge: { vi: "Bài học", en: "Lesson", ko: "교훈" },
   memory_quadrant_earned_reward: {
     vi: "Phần thưởng xứng đáng",
     en: "Earned reward",
@@ -467,6 +479,11 @@ const DICT = {
   sim_card_title_home: { vi: "Nếu tôi mua nhà…", en: "What if I buy a home…", ko: "주택을 구매한다면…" },
   sim_card_title_career: { vi: "Nếu tôi đổi việc…", en: "What if I change careers…", ko: "이직한다면…" },
   sim_card_title_baby: { vi: "Nếu tôi có em bé…", en: "What if we have a baby…", ko: "출산하게 된다면…" },
+  sim_card_title_marriage: {
+    vi: "Nếu tôi kết hôn…",
+    en: "What if I get married…",
+    ko: "결혼하게 된다면…",
+  },
   sim_card_desc: {
     vi: "Lodestar mô phỏng tác động trên cả bốn đơn vị Shinhan.",
     en: "Lodestar simulates the impact across all four Shinhan entities.",
@@ -492,6 +509,11 @@ const DICT = {
     en: "New baby",
     ko: "출산",
   },
+  sim_scenario_marriage: {
+    vi: "Kết hôn",
+    en: "Marriage",
+    ko: "결혼",
+  },
   sim_field_new_income: {
     vi: "Thu nhập mới (VND/tháng)",
     en: "New monthly income (VND)",
@@ -511,6 +533,26 @@ const DICT = {
     vi: "Bao gồm sữa, y tế và chăm sóc. Mặc định 8,000,000.",
     en: "Formula, medical and childcare. Defaults to 8,000,000.",
     ko: "분유, 의료 및 육아. 기본값 8,000,000.",
+  },
+  sim_field_partner_income: {
+    vi: "Thu nhập của bạn đời (VND/tháng)",
+    en: "Partner monthly income (VND)",
+    ko: "배우자 월 소득 (VND)",
+  },
+  sim_field_partner_income_hint: {
+    vi: "Ước tính thu nhập hàng tháng của bạn đời.",
+    en: "Estimated partner monthly income.",
+    ko: "배우자의 월 소득 예상치.",
+  },
+  sim_field_wedding_cost: {
+    vi: "Chi phí kết hôn (VND)",
+    en: "Wedding cost (VND)",
+    ko: "결혼 비용 (VND)",
+  },
+  sim_field_wedding_cost_hint: {
+    vi: "Bao gồm đám cưới và nhà cửa ban đầu.",
+    en: "Ceremony and initial household setup.",
+    ko: "예식 및 초기 주거 비용.",
   },
   sim_price: { vi: "Giá nhà (VND)", en: "Property price (VND)", ko: "주택 가격 (VND)" },
   sim_price_hint: {

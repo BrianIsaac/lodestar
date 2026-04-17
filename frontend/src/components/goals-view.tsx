@@ -60,11 +60,12 @@ export function GoalsView({ customerId, goalPreset }: Props) {
       const list = await fetchGoals(customerId);
       setGoals(list);
     } catch {
+      toast.error(t("goals_fetch_error"));
       setGoals([]);
     } finally {
       setLoading(false);
     }
-  }, [customerId]);
+  }, [customerId, t]);
 
   useEffect(() => {
     refresh();

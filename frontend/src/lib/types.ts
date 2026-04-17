@@ -29,6 +29,7 @@ export interface InsightCard {
   compliance_class: "information" | "guidance" | "advice";
   priority_score: number;
   dismissed: boolean;
+  created_at?: string;
 }
 
 export interface InsightFeed {
@@ -56,6 +57,7 @@ export interface SavingsGoal {
   target_amount: number;
   current_amount: number;
   target_date: string;
+  created_at: string;
 }
 
 export interface EntityImpact {
@@ -82,10 +84,14 @@ export interface ProductInfo {
   product_type: string;
   name_vi: string;
   name_en: string;
-  name_ko?: string;
+  name_ko: string;
   description_vi: string;
-  description_en?: string;
-  description_ko?: string;
+  description_en: string;
+  description_ko: string;
+  /** Display name resolved to the requested language by the API. */
+  name: string;
+  /** Display description resolved to the requested language by the API. */
+  description: string;
   interest_rate: number | null;
   min_income: number | null;
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export function ProductSearch({ initialQuery }: ProductSearchProps = {}) {
       const list = await searchProducts(q, lang);
       setResults(list);
     } catch {
+      toast.error(t("products_fetch_error"));
       setResults([]);
     } finally {
       setLoading(false);
@@ -134,21 +136,22 @@ export function ProductSearch({ initialQuery }: ProductSearchProps = {}) {
 
       <div className={resultsGridClass}>
         {results.map((p) => {
-          // Catalogue carries all three locales; pick the right field per
-          // UI language with a Vi fallback if a product hasn't been
-          // translated yet.
+          // Server projects `name` and `description` to the requested
+          // locale; fall back to the per-locale fields for older payloads.
           const name =
-            lang === "ko"
+            p.name ||
+            (lang === "ko"
               ? p.name_ko || p.name_vi
               : lang === "en"
                 ? p.name_en || p.name_vi
-                : p.name_vi;
+                : p.name_vi);
           const description =
-            lang === "ko"
+            p.description ||
+            (lang === "ko"
               ? p.description_ko || p.description_vi
               : lang === "en"
                 ? p.description_en || p.description_vi
-                : p.description_vi;
+                : p.description_vi);
           const entityKey = ENTITY_LABEL_KEY[p.entity];
           return (
             <Card key={p.product_id}>

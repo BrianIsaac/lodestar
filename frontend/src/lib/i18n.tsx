@@ -139,16 +139,6 @@ const DICT = {
   },
   demo_field_category: { vi: "Danh mục", en: "Category", ko: "카테고리" },
   demo_inject: { vi: "Ghi giao dịch", en: "Inject", ko: "주입" },
-  demo_toast_new_insight: {
-    vi: "Coach phát hiện: {title}",
-    en: "Coach detected: {title}",
-    ko: "코치가 감지: {title}",
-  },
-  demo_toast_recorded: {
-    vi: "Đã ghi giao dịch {merchant}",
-    en: "Transaction recorded: {merchant}",
-    ko: "거래 기록됨: {merchant}",
-  },
   demo_toast_agent_reasoning: {
     vi: "Đã ghi {merchant}. Coach đang phân tích…",
     en: "{merchant} recorded. Coach is analysing…",
@@ -178,6 +168,156 @@ const DICT = {
     vi: "Không đặt lại được bản demo.",
     en: "Could not reset the demo.",
     ko: "데모를 초기화하지 못했습니다.",
+  },
+
+  // Simulate drawer — preset groups and hints
+  demo_group_everyday: {
+    vi: "Hằng ngày",
+    en: "Everyday",
+    ko: "일상",
+  },
+  demo_group_baby: {
+    vi: "Sự kiện — em bé",
+    en: "Life event — baby",
+    ko: "라이프 이벤트 — 출산",
+  },
+  demo_group_anomalies: {
+    vi: "Bất thường",
+    en: "Anomalies",
+    ko: "이상 징후",
+  },
+  demo_group_income_home: {
+    vi: "Thu nhập + Nhà ở",
+    en: "Income + Home",
+    ko: "소득 + 주택",
+  },
+  demo_hint_first_baby: {
+    vi: "Tín hiệu đầu tiên về em bé",
+    en: "1st baby-merchant",
+    ko: "첫 번째 출산 관련 가맹점",
+  },
+  demo_hint_second_baby: {
+    vi: "Tín hiệu thứ hai — kích hoạt sự kiện cuộc sống",
+    en: "2nd — should trigger life_event",
+    ko: "두 번째 — life_event 발동",
+  },
+  demo_hint_third_baby: {
+    vi: "Tín hiệu thứ ba — củng cố",
+    en: "3rd baby signal (reinforces)",
+    ko: "세 번째 — 신호 강화",
+  },
+  demo_hint_recurring_change: {
+    vi: "Kích hoạt recurring_change",
+    en: "should trigger recurring_change",
+    ko: "recurring_change 발동",
+  },
+  demo_hint_big_shopping: {
+    vi: "Chi tiêu mua sắm lớn",
+    en: "Big shopping spend",
+    ko: "대규모 쇼핑 지출",
+  },
+  demo_hint_payday: {
+    vi: "Kích hoạt payday",
+    en: "Should trigger payday",
+    ko: "payday 발동",
+  },
+  demo_hint_home_purchase: {
+    vi: "Tín hiệu mua nhà",
+    en: "Home purchase signal",
+    ko: "주택 구매 신호",
+  },
+
+  // Memory panel (demo narration — inspect lessons + reflections + cohort)
+  memory_title: {
+    vi: "Bộ nhớ của Coach",
+    en: "Coach memory",
+    ko: "코치 메모리",
+  },
+  memory_open: {
+    vi: "Xem bộ nhớ",
+    en: "Inspect memory",
+    ko: "메모리 확인",
+  },
+  memory_description: {
+    vi: "Bài học, phản hồi và tổng hợp cohort mà Coach đã tích lũy cho khách hàng này.",
+    en: "Lessons, reflections and cohort aggregates the Coach has accumulated for this customer.",
+    ko: "코치가 이 고객에 대해 축적한 교훈, 성찰 및 코호트 집계.",
+  },
+  memory_section_lessons: {
+    vi: "Bài học ({count})",
+    en: "Lessons ({count})",
+    ko: "교훈 ({count})",
+  },
+  memory_section_reflections: {
+    vi: "Phản hồi ({count})",
+    en: "Reflections ({count})",
+    ko: "성찰 ({count})",
+  },
+  memory_section_cohort: {
+    vi: "Cohort ({key}) — {count} mẫu",
+    en: "Cohort ({key}) — {count} patterns",
+    ko: "코호트 ({key}) — {count}개 패턴",
+  },
+  memory_empty: {
+    vi: "Chưa có bài học nào được ghi. Tương tác với một thẻ để Coach bắt đầu học.",
+    en: "No lessons yet. Engage with a card so Coach starts learning.",
+    ko: "아직 저장된 교훈이 없습니다. 카드를 탭해 코치가 학습하도록 하세요.",
+  },
+  memory_loading: {
+    vi: "Đang tải bộ nhớ…",
+    en: "Loading memory…",
+    ko: "메모리 로딩 중…",
+  },
+  memory_error: {
+    vi: "Không tải được bộ nhớ Coach.",
+    en: "Could not load Coach memory.",
+    ko: "코치 메모리를 불러오지 못했습니다.",
+  },
+  memory_close: { vi: "Đóng", en: "Close", ko: "닫기" },
+  memory_quadrant_earned_reward: {
+    vi: "Phần thưởng xứng đáng",
+    en: "Earned reward",
+    ko: "정당한 보상",
+  },
+  memory_quadrant_bad_luck: {
+    vi: "Không may",
+    en: "Bad luck",
+    ko: "불운",
+  },
+  memory_quadrant_dumb_luck: {
+    vi: "May mắn vô tình",
+    en: "Dumb luck",
+    ko: "운 좋은 결과",
+  },
+  memory_quadrant_just_desserts: {
+    vi: "Tất yếu",
+    en: "Just desserts",
+    ko: "자업자득",
+  },
+  memory_confidence: { vi: "Độ tin cậy", en: "Confidence", ko: "확신도" },
+  memory_importance: { vi: "Tầm quan trọng", en: "Importance", ko: "중요도" },
+  memory_evolved: { vi: "Lần tiến hóa", en: "Evolved", ko: "진화" },
+
+  // Generic error toasts for silent list-fetch failures
+  feed_fetch_error: {
+    vi: "Không tải được bảng tin Coach.",
+    en: "Could not load the Coach feed.",
+    ko: "코치 피드를 불러오지 못했습니다.",
+  },
+  goals_fetch_error: {
+    vi: "Không tải được mục tiêu tiết kiệm.",
+    en: "Could not load savings goals.",
+    ko: "저축 목표를 불러오지 못했습니다.",
+  },
+  products_fetch_error: {
+    vi: "Không tải được danh sách sản phẩm.",
+    en: "Could not load products.",
+    ko: "상품을 불러오지 못했습니다.",
+  },
+  transactions_fetch_error: {
+    vi: "Không tải được giao dịch gần đây.",
+    en: "Could not load recent activity.",
+    ko: "최근 거래를 불러오지 못했습니다.",
   },
 
   // Tool call indicator
@@ -323,11 +463,54 @@ const DICT = {
     en: "Lodestar analyses impact across all four Shinhan entities.",
     ko: "Lodestar는 신한의 4개 계열사 전반에 미치는 영향을 분석합니다.",
   },
-  sim_card_title: { vi: "Nếu tôi mua nhà…", en: "What if I buy a home…", ko: "주택을 구매한다면…" },
+  sim_card_title: { vi: "Mô phỏng tài chính", en: "Financial simulation", ko: "재무 시뮬레이션" },
+  sim_card_title_home: { vi: "Nếu tôi mua nhà…", en: "What if I buy a home…", ko: "주택을 구매한다면…" },
+  sim_card_title_career: { vi: "Nếu tôi đổi việc…", en: "What if I change careers…", ko: "이직한다면…" },
+  sim_card_title_baby: { vi: "Nếu tôi có em bé…", en: "What if we have a baby…", ko: "출산하게 된다면…" },
   sim_card_desc: {
     vi: "Lodestar mô phỏng tác động trên cả bốn đơn vị Shinhan.",
     en: "Lodestar simulates the impact across all four Shinhan entities.",
     ko: "Lodestar가 신한 4개 계열사 전반의 영향을 시뮬레이션합니다.",
+  },
+  sim_scenario_label: {
+    vi: "Kịch bản",
+    en: "Scenario",
+    ko: "시나리오",
+  },
+  sim_scenario_home: {
+    vi: "Mua nhà",
+    en: "Home purchase",
+    ko: "주택 구매",
+  },
+  sim_scenario_career: {
+    vi: "Đổi việc",
+    en: "Career change",
+    ko: "이직",
+  },
+  sim_scenario_baby: {
+    vi: "Có em bé",
+    en: "New baby",
+    ko: "출산",
+  },
+  sim_field_new_income: {
+    vi: "Thu nhập mới (VND/tháng)",
+    en: "New monthly income (VND)",
+    ko: "새 월 소득 (VND)",
+  },
+  sim_field_new_income_hint: {
+    vi: "Ví dụ 16,000,000 cho tăng lương lên 16 triệu.",
+    en: "e.g. 16,000,000 for a raise to 16M.",
+    ko: "예: 월 1,600만 VND로 인상 시 16,000,000.",
+  },
+  sim_field_baby_cost: {
+    vi: "Chi phí hàng tháng cho em bé (VND)",
+    en: "Monthly baby cost (VND)",
+    ko: "월별 육아비 (VND)",
+  },
+  sim_field_baby_cost_hint: {
+    vi: "Bao gồm sữa, y tế và chăm sóc. Mặc định 8,000,000.",
+    en: "Formula, medical and childcare. Defaults to 8,000,000.",
+    ko: "분유, 의료 및 육아. 기본값 8,000,000.",
   },
   sim_price: { vi: "Giá nhà (VND)", en: "Property price (VND)", ko: "주택 가격 (VND)" },
   sim_price_hint: {

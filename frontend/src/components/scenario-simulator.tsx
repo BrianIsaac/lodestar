@@ -36,11 +36,38 @@ const ENTITY_META: Record<
   life: { icon: Shield, labelKey: "entity_life", colorClass: "text-chart-5" },
 };
 
+type ScenarioType = "home_purchase" | "career_change" | "new_baby";
+
+const SCENARIO_OPTIONS: {
+  id: ScenarioType;
+  labelKey: StringKey;
+  titleKey: StringKey;
+}[] = [
+  {
+    id: "home_purchase",
+    labelKey: "sim_scenario_home",
+    titleKey: "sim_card_title_home",
+  },
+  {
+    id: "career_change",
+    labelKey: "sim_scenario_career",
+    titleKey: "sim_card_title_career",
+  },
+  {
+    id: "new_baby",
+    labelKey: "sim_scenario_baby",
+    titleKey: "sim_card_title_baby",
+  },
+];
+
 export function ScenarioSimulator({ customerId }: Props) {
+  const [scenario, setScenario] = useState<ScenarioType>("home_purchase");
   const [price, setPrice] = useState("2000000000");
   const [down, setDown] = useState("0.2");
   const [term, setTerm] = useState("240");
   const [rate, setRate] = useState("7.5");
+  const [newIncome, setNewIncome] = useState("16000000");
+  const [babyCost, setBabyCost] = useState("8000000");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScenarioResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,17 +78,19 @@ export function ScenarioSimulator({ customerId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await simulateScenario(
-        customerId,
-        "home_purchase",
-        {
-          property_value: Number(price),
-          down_payment_pct: Number(down),
-          term_months: Number(term),
-          interest_rate: Number(rate),
-        },
-        lang
-      );
+      const parameters =
+        scenario === "home_purchase"
+          ? {
+              property_value: Number(price),
+              down_payment_pct: Number(down),
+              term_months: Number(term),
+              interest_rate: Number(rate),
+            }
+          : scenario === "career_change"
+            ? { new_income: Number(newIncome) }
+            : { monthly_cost: Number(babyCost) };
+
+      const res = await simulateScenario(customerId, scenario, parameters, lang);
       setResult(res);
     } catch {
       setError(t("sim_error"));
@@ -74,58 +103,120 @@ export function ScenarioSimulator({ customerId }: Props) {
     <div className="flex flex-col gap-4">
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-sm">{t("sim_card_title")}</CardTitle>
+          <CardTitle className="text-sm">
+            {t(
+              SCENARIO_OPTIONS.find((opt) => opt.id === scenario)?.titleKey ??
+                "sim_card_title",
+            )}
+          </CardTitle>
           <CardDescription className="text-xs">{t("sim_card_desc")}</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={run}>
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="sim-price">{t("sim_price")}</FieldLabel>
-                <Input
-                  id="sim-price"
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  min={0}
-                />
-                <FieldDescription>{t("sim_price_hint")}</FieldDescription>
+                <FieldLabel htmlFor="sim-scenario">{t("sim_scenario_label")}</FieldLabel>
+                <div className="flex flex-wrap gap-1.5">
+                  {SCENARIO_OPTIONS.map((opt) => {
+                    const active = scenario === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setScenario(opt.id)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+                          active
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background hover:bg-muted"
+                        )}
+                      >
+                        {t(opt.labelKey)}
+                      </button>
+                    );
+                  })}
+                </div>
               </Field>
-              <div className="grid grid-cols-3 gap-3">
+              {scenario === "home_purchase" && (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="sim-price">{t("sim_price")}</FieldLabel>
+                    <Input
+                      id="sim-price"
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      min={0}
+                    />
+                    <FieldDescription>{t("sim_price_hint")}</FieldDescription>
+                  </Field>
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field>
+                      <FieldLabel htmlFor="sim-down">{t("sim_down")}</FieldLabel>
+                      <Input
+                        id="sim-down"
+                        type="number"
+                        step="0.05"
+                        value={down}
+                        onChange={(e) => setDown(e.target.value)}
+                        min={0}
+                        max={1}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="sim-term">{t("sim_term")}</FieldLabel>
+                      <Input
+                        id="sim-term"
+                        type="number"
+                        value={term}
+                        onChange={(e) => setTerm(e.target.value)}
+                        min={12}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="sim-rate">{t("sim_rate")}</FieldLabel>
+                      <Input
+                        id="sim-rate"
+                        type="number"
+                        step="0.1"
+                        value={rate}
+                        onChange={(e) => setRate(e.target.value)}
+                        min={0}
+                      />
+                    </Field>
+                  </div>
+                </>
+              )}
+              {scenario === "career_change" && (
                 <Field>
-                  <FieldLabel htmlFor="sim-down">{t("sim_down")}</FieldLabel>
+                  <FieldLabel htmlFor="sim-new-income">
+                    {t("sim_field_new_income")}
+                  </FieldLabel>
                   <Input
-                    id="sim-down"
+                    id="sim-new-income"
                     type="number"
-                    step="0.05"
-                    value={down}
-                    onChange={(e) => setDown(e.target.value)}
+                    value={newIncome}
+                    onChange={(e) => setNewIncome(e.target.value)}
                     min={0}
-                    max={1}
                   />
+                  <FieldDescription>{t("sim_field_new_income_hint")}</FieldDescription>
                 </Field>
+              )}
+              {scenario === "new_baby" && (
                 <Field>
-                  <FieldLabel htmlFor="sim-term">{t("sim_term")}</FieldLabel>
+                  <FieldLabel htmlFor="sim-baby-cost">
+                    {t("sim_field_baby_cost")}
+                  </FieldLabel>
                   <Input
-                    id="sim-term"
+                    id="sim-baby-cost"
                     type="number"
-                    value={term}
-                    onChange={(e) => setTerm(e.target.value)}
-                    min={12}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="sim-rate">{t("sim_rate")}</FieldLabel>
-                  <Input
-                    id="sim-rate"
-                    type="number"
-                    step="0.1"
-                    value={rate}
-                    onChange={(e) => setRate(e.target.value)}
+                    value={babyCost}
+                    onChange={(e) => setBabyCost(e.target.value)}
                     min={0}
                   />
+                  <FieldDescription>{t("sim_field_baby_cost_hint")}</FieldDescription>
                 </Field>
-              </div>
+              )}
             </FieldGroup>
             <Button type="submit" disabled={loading} className="mt-4 w-full">
               {loading ? (

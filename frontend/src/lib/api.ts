@@ -168,10 +168,57 @@ export interface DemoResetResult {
   customer_id: string;
   cards_deleted: number;
   demo_transactions_deleted: number;
+  goals_deleted: number;
+  lessons_deleted: number;
+  reflections_deleted: number;
 }
 
 export async function postDemoReset(customerId: string): Promise<DemoResetResult> {
   const res = await fetch(`${API}/demo/reset/${customerId}`, { method: "POST" });
   if (!res.ok) throw new Error(`Demo reset error: ${res.status}`);
+  return res.json();
+}
+
+export interface MemoryLesson {
+  lesson_id: string;
+  conditions: string;
+  insight: string;
+  error_type: string;
+  confidence: number;
+  importance: number;
+  times_evolved: number;
+}
+
+export interface MemoryReflection {
+  reflection_id: string;
+  interaction_id: string;
+  process_grade: string;
+  outcome_quality: string;
+  quadrant: string;
+  lesson_extracted: boolean;
+  created_at: string;
+}
+
+export interface MemoryCohortInsight {
+  cohort_key: string;
+  pattern_type: string;
+  category: string;
+  insight: string;
+  confidence: number;
+  supporting_count: number;
+  effectiveness: number;
+}
+
+export interface MemorySnapshot {
+  customer_id: string;
+  cohort_key: string | null;
+  lessons: MemoryLesson[];
+  reflections: MemoryReflection[];
+  cohort_insights: MemoryCohortInsight[];
+}
+
+export async function fetchMemory(customerId: string): Promise<MemorySnapshot> {
+  const res = await fetch(`${API}/memory/${customerId}`);
+  if (!res.ok) throw new Error(`Memory error: ${res.status}`);
   return res.json();
 }

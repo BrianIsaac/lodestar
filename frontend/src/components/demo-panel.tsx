@@ -16,7 +16,8 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { postDemoReset, postDemoTransaction, type DemoTransactionPayload } from "@/lib/api";
-import { useT } from "@/lib/i18n";
+import { useT, type StringKey } from "@/lib/i18n";
+import { MemoryPanel } from "@/components/memory-panel";
 
 interface Props {
   customerId: string;
@@ -28,13 +29,18 @@ interface Preset {
   label: string;
   emoji: string;
   payload: DemoTransactionPayload;
-  hint?: string;
+  hintKey?: StringKey;
 }
 
-function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
+interface PresetGroup {
+  titleKey: StringKey;
+  items: Preset[];
+}
+
+function presetsFor(customerId: string): PresetGroup[] {
   return [
     {
-      group: "Everyday",
+      titleKey: "demo_group_everyday",
       items: [
         {
           emoji: "☕",
@@ -59,12 +65,12 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
       ],
     },
     {
-      group: "Life event — baby",
+      titleKey: "demo_group_baby",
       items: [
         {
           emoji: "👶",
           label: "Kids Plaza 2.1M",
-          hint: "1st baby-merchant",
+          hintKey: "demo_hint_first_baby",
           payload: {
             customer_id: customerId,
             merchant: "Kids Plaza",
@@ -75,7 +81,7 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
         {
           emoji: "👶",
           label: "Con Cưng 1.8M",
-          hint: "2nd — should trigger life_event",
+          hintKey: "demo_hint_second_baby",
           payload: {
             customer_id: customerId,
             merchant: "Con Cưng",
@@ -86,7 +92,7 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
         {
           emoji: "🏥",
           label: "Bệnh viện Phụ sản 3.5M",
-          hint: "3rd baby signal (reinforces)",
+          hintKey: "demo_hint_third_baby",
           payload: {
             customer_id: customerId,
             merchant: "Bệnh viện Phụ sản Hà Nội",
@@ -97,12 +103,12 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
       ],
     },
     {
-      group: "Anomalies",
+      titleKey: "demo_group_anomalies",
       items: [
         {
           emoji: "📺",
           label: "Netflix 660K (3× normal)",
-          hint: "should trigger recurring_change",
+          hintKey: "demo_hint_recurring_change",
           payload: {
             customer_id: customerId,
             merchant: "Netflix VN",
@@ -113,7 +119,7 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
         {
           emoji: "💳",
           label: "FPT Shop 28M",
-          hint: "big shopping spend",
+          hintKey: "demo_hint_big_shopping",
           payload: {
             customer_id: customerId,
             merchant: "FPT Shop",
@@ -124,12 +130,12 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
       ],
     },
     {
-      group: "Income + Home",
+      titleKey: "demo_group_income_home",
       items: [
         {
           emoji: "💰",
           label: "Salary credit 12.5M",
-          hint: "should trigger payday",
+          hintKey: "demo_hint_payday",
           payload: {
             customer_id: customerId,
             merchant: "LUONG THANG",
@@ -140,7 +146,7 @@ function presetsFor(customerId: string): { group: string; items: Preset[] }[] {
         {
           emoji: "🏠",
           label: "Vinhomes deposit 50M",
-          hint: "home purchase signal",
+          hintKey: "demo_hint_home_purchase",
           payload: {
             customer_id: customerId,
             merchant: "Công ty BĐS Vinhomes",
@@ -241,10 +247,11 @@ export function DemoPanel({ customerId, onInjected, onReset }: Props) {
               {t("demo_reset_button")}
             </Button>
           </div>
+          <MemoryPanel customerId={customerId} />
           {presetsFor(customerId).map((group) => (
-            <section key={group.group} className="flex flex-col gap-2">
+            <section key={group.titleKey} className="flex flex-col gap-2">
               <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.group}
+                {t(group.titleKey)}
               </h4>
               <div className="flex flex-col gap-1.5">
                 {group.items.map((preset) => (
@@ -259,8 +266,8 @@ export function DemoPanel({ customerId, onInjected, onReset }: Props) {
                       <span className="text-base leading-none">{preset.emoji}</span>
                       <span>{preset.label}</span>
                     </span>
-                    {preset.hint && (
-                      <span className="text-[10px] text-muted-foreground">{preset.hint}</span>
+                    {preset.hintKey && (
+                      <span className="text-[10px] text-muted-foreground">{t(preset.hintKey)}</span>
                     )}
                   </button>
                 ))}

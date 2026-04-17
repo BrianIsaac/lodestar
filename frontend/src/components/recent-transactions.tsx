@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   Coffee,
   Car,
@@ -68,7 +69,9 @@ export function RecentTransactions({
         }
       })
       .catch(() => {
-        if (!cancelled) setTxns([]);
+        if (cancelled) return;
+        toast.error(t("transactions_fetch_error"));
+        setTxns([]);
       });
     return () => {
       cancelled = true;

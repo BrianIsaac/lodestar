@@ -78,7 +78,9 @@ export function InsightFeed({
         if (!cancelled) setState({ status: "ready", cards: feed.cards });
       })
       .catch(() => {
-        if (!cancelled) setState({ status: "ready", cards: [] });
+        if (cancelled) return;
+        toast.error(t("feed_fetch_error"));
+        setState({ status: "ready", cards: [] });
       });
     return () => {
       cancelled = true;

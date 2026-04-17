@@ -38,14 +38,12 @@ export function DrillDownChat({
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [historyLoaded, setHistoryLoaded] = useState(false);
-  // followupsI18n stores the backend's tri-lingual chip bundle so a
-  // language toggle re-derives the chips from the currently-selected
-  // locale instead of freezing whatever language was active when the
-  // last reply arrived. A ref (instead of state) because writes here
-  // don't need to trigger an extra render — the render pulls from it
-  // via the `lang` derivation below.
-  const followupsI18nRef = useRef<Record<string, string[]> | null>(null);
-  const [, setFollowupsTick] = useState(0);
+  // Tri-lingual chip bundle kept in plain state so a language toggle
+  // re-derives the displayed chips via `bundle[lang]`. Stored as the
+  // whole dict instead of a flat list so the toggle is free — no round
+  // trip to the backend.
+  const [followupsI18n, setFollowupsI18n] =
+    useState<Record<string, string[]> | null>(null);
   const scrollAnchor = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
@@ -102,8 +100,7 @@ export function DrillDownChat({
     setMessages((xs) => [...xs, userMsg]);
     setInput("");
     setLoading(true);
-    followupsI18nRef.current = null;
-    setFollowupsTick((n) => n + 1);
+    setFollowupsI18n(null);
 
     try {
       const resp = await sendChat(insightId, customerId, content, initialContext, lang);
@@ -114,13 +111,12 @@ export function DrillDownChat({
       }));
       setMessages((xs) => [...xs, ...toolChips, resp.message]);
       if (resp.suggested_followups_i18n) {
-        followupsI18nRef.current = resp.suggested_followups_i18n;
+        setFollowupsI18n(resp.suggested_followups_i18n);
       } else if (resp.suggested_followups?.length) {
         // Older backend shape: wrap the single-locale chips so the
         // render path below keeps working without a type split.
-        followupsI18nRef.current = { [lang]: resp.suggested_followups };
+        setFollowupsI18n({ [lang]: resp.suggested_followups });
       }
-      setFollowupsTick((n) => n + 1);
     } catch {
       setMessages((xs) => [
         ...xs,
@@ -137,30 +133,29 @@ export function DrillDownChat({
 
   const defaultFollowups = suggestedPrompts ?? DEFAULT_PROMPT_KEYS.map((k) => t(k));
   const activeFollowups: string[] = (() => {
-    const bundle = followupsI18nRef.current;
-    if (!bundle) return messages.length === 0 ? defaultFollowups : [];
-    return bundle[lang] ?? bundle.vi ?? defaultFollowups;
+    if (!followupsI18n) return messages.length === 0 ? defaultFollowups : [];
+    return followupsI18n[lang] ?? followupsI18n.vi ?? defaultFollowups;
   })();
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        {messages.length === 0 && !loading && (
+        {messages.length === 0 && !loading ? (
           <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center text-sm text-muted-foreground">
             {t("chat_empty_prompt")}
           </div>
-        )}
+        ) : null}
 
         {messages.map((msg, i) => (
           <MessageBubble key={i} message={msg} lang={lang} />
         ))}
 
-        {loading && (
+        {loading ? (
           <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
             <Spinner className="size-4 text-primary" />
             <span>{t("chat_thinking")}</span>
           </div>
-        )}
+        ) : null}
         <div ref={scrollAnchor} />
       </div>
 

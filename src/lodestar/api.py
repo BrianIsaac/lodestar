@@ -463,6 +463,11 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
             "role": "assistant",
             "content": assistant_content,
             "content_i18n": _capped(response.message.content_i18n) or None,
+            # Persisting the tool call names on the assistant entry lets
+            # the history endpoint reconstruct the visible tool chips on
+            # replay — otherwise a returning visitor sees a clean bubble
+            # with no trace of the agent's tool-calling loop.
+            "tool_calls": list(response.tool_calls or []) or None,
         },
     )
 
@@ -545,11 +550,14 @@ async def chat_history(insight_id: str) -> list[ChatMessage]:
 
     Used by the drill-down chat to restore its message list on remount
     (navigating away and back would otherwise lose the thread, since the
-    component's message array lives only in React local state). Internal
-    timeline entries (``event`` / ``agent_reasoning`` / ``card``) are
-    hidden — callers only see what the customer actually exchanged with
-    the coach, with each bubble carrying ``content_i18n`` so a language
-    toggle swaps the text without a round-trip.
+    component's message array lives only in React local state). Each
+    bubble carries ``content_i18n`` so a language toggle swaps the text
+    without a round-trip. When an assistant turn was synthesised via
+    tool calls, the stored ``tool_calls`` list is replayed as synthetic
+    ``role="tool"`` chip entries placed immediately before the assistant
+    bubble, preserving the live-session visual cue on history replay.
+    Internal timeline entries (``event`` / ``agent_reasoning`` /
+    ``card`` / ``engagement``) are hidden.
     """
     from lodestar.learning.interactions import get_interaction_for_insight
 
@@ -567,6 +575,23 @@ async def chat_history(insight_id: str) -> list[ChatMessage]:
         content_i18n = msg.get("content_i18n")
         if not isinstance(content_i18n, dict):
             content_i18n = None
+
+        # Replay any tool chips that preceded this assistant bubble in
+        # the live session. The chip's ``content`` holds the tool name;
+        # the frontend renders it via the ``chat_tool_running`` i18n
+        # template just like it does for live sends.
+        if role == "assistant":
+            for tool_name in msg.get("tool_calls") or []:
+                if not isinstance(tool_name, str) or not tool_name:
+                    continue
+                out.append(
+                    ChatMessage(
+                        role="tool",
+                        content=tool_name,
+                        insight_id=insight_id,
+                    )
+                )
+
         out.append(
             ChatMessage(
                 role=role,

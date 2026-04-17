@@ -79,7 +79,13 @@ async def append_to_interaction(insight_id: str, message: dict) -> str | None:
 
 
 async def get_interaction_for_insight(insight_id: str) -> dict | None:
-    """Return the interaction row bound to an insight, or None."""
+    """Return the interaction row bound to an insight, or None.
+
+    A corrupt ``messages`` JSON column is treated as an empty timeline
+    rather than raising: callers generally use the messages for demo
+    narration or history replay, neither of which should 500 because
+    one row on disk was hand-edited or partially written.
+    """
     db = await get_db()
     try:
         cursor = await db.execute(
@@ -89,11 +95,18 @@ async def get_interaction_for_insight(insight_id: str) -> dict | None:
         row = await cursor.fetchone()
         if row is None:
             return None
+        raw = row["messages"] or "[]"
+        try:
+            messages = json.loads(raw)
+        except json.JSONDecodeError:
+            messages = []
+        if not isinstance(messages, list):
+            messages = []
         return {
             "interaction_id": row["interaction_id"],
             "customer_id": row["customer_id"],
             "insight_id": row["insight_id"],
-            "messages": json.loads(row["messages"] or "[]"),
+            "messages": messages,
             "created_at": row["created_at"],
         }
     finally:

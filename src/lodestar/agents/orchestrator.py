@@ -177,6 +177,52 @@ _FOLLOWUP_SUGGESTIONS: dict[str, dict[str, list[str]]] = {
 }
 
 
+_ERROR_MESSAGES = {
+    "vi": "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại.",
+    "en": "Sorry, something went wrong. Please try again.",
+    "ko": "죄송합니다. 오류가 발생했습니다. 다시 시도해주세요.",
+}
+
+
+def _parse_final_json(raw: str) -> dict:
+    """Parse the final-turn response, extracting a JSON object even when
+    the model wraps it in a preamble like "Here is the JSON: {…}".
+
+    Returns the parsed dict or an empty dict if no JSON object can be
+    recovered. The caller is responsible for surfacing a localised
+    fallback — this helper never leaks the raw text to a user bubble.
+    """
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        value = None
+
+    if isinstance(value, dict):
+        return value
+
+    # Preamble fallback: locate the first balanced top-level object and
+    # try again. json_object response_format usually prevents this case,
+    # but some Qwen builds prefix "Here is your reply:" despite the flag.
+    start = raw.find("{")
+    if start == -1:
+        return {}
+    depth = 0
+    for i in range(start, len(raw)):
+        ch = raw[i]
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = raw[start : i + 1]
+                try:
+                    value = json.loads(candidate)
+                except json.JSONDecodeError:
+                    return {}
+                return value if isinstance(value, dict) else {}
+    return {}
+
+
 def _followups_for(tool_names: list[str], language: str) -> list[str]:
     """Return 3 contextual follow-up prompts based on which tool fired.
 
@@ -306,14 +352,16 @@ async def chat(
         api_messages.append({"role": msg.role, "content": msg.content})
 
     try:
-        # Turn 1 — tool-calling turn. Kept cheap (max_tokens=512) because
-        # it only needs to decide whether to fire tools, not compose prose.
+        # Turn 1 — tool-calling turn. The model needs enough headroom to
+        # serialise the full tool_calls payload; truncating mid-arguments
+        # produces a malformed JSON string that the dispatcher below
+        # cannot recover from, leaking a KeyError on required tool args.
         response = await client.chat.completions.create(
             model=settings.llm_model,
             messages=api_messages,
             tools=TOOL_DEFINITIONS,
             temperature=0.7,
-            max_tokens=512,
+            max_tokens=1024,
         )
 
         choice = response.choices[0]
@@ -329,13 +377,31 @@ async def chat(
                 try:
                     tool_args = json.loads(tool_call.function.arguments)
                 except json.JSONDecodeError:
-                    tool_args = {}
+                    logger.warning(
+                        "tool_call args failed JSON parse for %s — skipping tool",
+                        tool_name,
+                    )
+                    # Skip this tool entirely rather than fire it with a
+                    # missing required parameter (e.g. `period` for
+                    # spending_analysis) which would raise inside the
+                    # workflow and 502 the whole chat.
+                    continue
 
                 if "customer_id" not in tool_args:
                     tool_args["customer_id"] = customer_id
 
-                tool_result = await _execute_tool(tool_name, tool_args, language=language)
-                tool_data = json.loads(tool_result)
+                try:
+                    tool_result = await _execute_tool(
+                        tool_name, tool_args, language=language
+                    )
+                except Exception:
+                    logger.exception("tool %s failed — continuing without it", tool_name)
+                    continue
+
+                try:
+                    tool_data = json.loads(tool_result)
+                except json.JSONDecodeError:
+                    tool_data = {}
 
                 if chart_spec is None and tool_data.get("chart_spec"):
                     chart_spec = ChartSpec(**tool_data["chart_spec"])
@@ -382,33 +448,31 @@ async def chat(
         )
         final_text = final.choices[0].message.content or "{}"
 
-        # JSON parsing with graceful fallback to single-locale so a
-        # malformed final-turn response still surfaces a useful bubble
-        # rather than a 502 to the user.
-        try:
-            parsed = json.loads(final_text)
-        except json.JSONDecodeError:
-            logger.warning("final-turn JSON parse failed; falling back to single locale")
-            parsed = {}
+        parsed = _parse_final_json(final_text)
 
         content_i18n_raw = parsed.get("content_i18n") if isinstance(parsed, dict) else None
         user_i18n_raw = parsed.get("user_message_i18n") if isinstance(parsed, dict) else None
 
-        if not isinstance(content_i18n_raw, dict):
-            # Degraded path: treat the raw text as the requested-locale
-            # reply; other locales remain empty and will fall back to
-            # the `content` string on the client.
-            content_i18n_raw = {language: final_text}
-
         # Coerce + trim to strings; drop any unknown locales.
         content_i18n: dict[str, str] = {}
-        for lang in ("vi", "en", "ko"):
-            v = content_i18n_raw.get(lang)
-            if isinstance(v, str) and v.strip():
-                content_i18n[lang] = v
+        if isinstance(content_i18n_raw, dict):
+            for lang in ("vi", "en", "ko"):
+                v = content_i18n_raw.get(lang)
+                if isinstance(v, str) and v.strip():
+                    content_i18n[lang] = v
 
         if not content_i18n:
-            content_i18n[language] = final_text
+            # Degraded path: JSON mode ensures final_text is SOME JSON, but
+            # the expected shape may be wrong. Surface a localised fallback
+            # rather than leak raw JSON preamble into a chat bubble.
+            logger.warning(
+                "final-turn JSON missing content_i18n; emitting localised fallback"
+            )
+            content_i18n = {
+                "vi": _ERROR_MESSAGES["vi"],
+                "en": _ERROR_MESSAGES["en"],
+                "ko": _ERROR_MESSAGES["ko"],
+            }
 
         user_message_i18n: dict[str, str] = {}
         if isinstance(user_i18n_raw, dict):

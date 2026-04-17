@@ -41,12 +41,14 @@ export interface InsightFeed {
 export interface ChatMessage {
   role: "user" | "assistant" | "system" | "tool";
   content: string;
+  content_i18n?: Record<string, string> | null;
   chart_spec?: ChartSpec | null;
 }
 
 export interface ChatResponse {
   message: ChatMessage;
   suggested_followups: string[];
+  suggested_followups_i18n?: Record<string, string[]> | null;
   tool_calls?: string[];
 }
 

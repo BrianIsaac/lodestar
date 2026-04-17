@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { ChartRenderer } from "@/components/chart-renderer";
-import { sendChat } from "@/lib/api";
+import { fetchChatHistory, sendChat } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { useT, type StringKey } from "@/lib/i18n";
+import { useT, type Lang, type StringKey } from "@/lib/i18n";
 import type { ChatMessage } from "@/lib/types";
 
 interface Props {
@@ -34,12 +34,18 @@ export function DrillDownChat({
   suggestedPrompts,
 }: Props) {
   const { lang, t } = useT();
-  const defaults = DEFAULT_PROMPT_KEYS.map((k) => t(k));
-  const initialFollowups = suggestedPrompts ?? defaults;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [followups, setFollowups] = useState<string[]>(initialFollowups);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  // followupsI18n stores the backend's tri-lingual chip bundle so a
+  // language toggle re-derives the chips from the currently-selected
+  // locale instead of freezing whatever language was active when the
+  // last reply arrived. A ref (instead of state) because writes here
+  // don't need to trigger an extra render — the render pulls from it
+  // via the `lang` derivation below.
+  const followupsI18nRef = useRef<Record<string, string[]> | null>(null);
+  const [, setFollowupsTick] = useState(0);
   const scrollAnchor = useRef<HTMLDivElement>(null);
 
   const searchParams = useSearchParams();
@@ -49,24 +55,44 @@ export function DrillDownChat({
     scrollAnchor.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages, loading]);
 
+  // Restore prior turns from the interaction ledger on mount so
+  // navigating away and back preserves the thread. The component's
+  // message list is otherwise pure React state and would be lost.
+  useEffect(() => {
+    let cancelled = false;
+    fetchChatHistory(insightId)
+      .then((msgs) => {
+        if (cancelled) return;
+        setMessages(msgs);
+      })
+      .catch(() => {
+        // Silent — empty history is the correct degraded state.
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [insightId]);
+
   // Auto-submit a quick-prompt coming from a feed card chip. Runs once
-  // per URL, guarded against re-fire when state changes.
+  // per URL, only after history has loaded and only when history is
+  // empty — a restored thread means the prefill already ran on a
+  // previous visit and re-firing it would duplicate the question.
   const submittedPrefillRef = useRef<string | null>(null);
   useEffect(() => {
+    if (!historyLoaded) return;
     if (!prefillPrompt) return;
     if (submittedPrefillRef.current === prefillPrompt) return;
+    if (messages.length > 0) {
+      submittedPrefillRef.current = prefillPrompt;
+      return;
+    }
     submittedPrefillRef.current = prefillPrompt;
     submit(prefillPrompt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefillPrompt]);
-
-  // Reset the empty-thread prompt set when the language changes so chips
-  // don't keep showing the previously-selected language's text.
-  useEffect(() => {
-    if (messages.length === 0 && !suggestedPrompts) {
-      setFollowups(DEFAULT_PROMPT_KEYS.map((k) => t(k)));
-    }
-  }, [lang, messages.length, suggestedPrompts, t]);
+  }, [prefillPrompt, historyLoaded, messages.length]);
 
   async function submit(text: string) {
     const content = text.trim();
@@ -76,7 +102,8 @@ export function DrillDownChat({
     setMessages((xs) => [...xs, userMsg]);
     setInput("");
     setLoading(true);
-    setFollowups([]);
+    followupsI18nRef.current = null;
+    setFollowupsTick((n) => n + 1);
 
     try {
       const resp = await sendChat(insightId, customerId, content, initialContext, lang);
@@ -86,9 +113,14 @@ export function DrillDownChat({
         chart_spec: null,
       }));
       setMessages((xs) => [...xs, ...toolChips, resp.message]);
-      if (resp.suggested_followups?.length) {
-        setFollowups(resp.suggested_followups);
+      if (resp.suggested_followups_i18n) {
+        followupsI18nRef.current = resp.suggested_followups_i18n;
+      } else if (resp.suggested_followups?.length) {
+        // Older backend shape: wrap the single-locale chips so the
+        // render path below keeps working without a type split.
+        followupsI18nRef.current = { [lang]: resp.suggested_followups };
       }
+      setFollowupsTick((n) => n + 1);
     } catch {
       setMessages((xs) => [
         ...xs,
@@ -103,6 +135,13 @@ export function DrillDownChat({
     }
   }
 
+  const defaultFollowups = suggestedPrompts ?? DEFAULT_PROMPT_KEYS.map((k) => t(k));
+  const activeFollowups: string[] = (() => {
+    const bundle = followupsI18nRef.current;
+    if (!bundle) return messages.length === 0 ? defaultFollowups : [];
+    return bundle[lang] ?? bundle.vi ?? defaultFollowups;
+  })();
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
@@ -113,7 +152,7 @@ export function DrillDownChat({
         )}
 
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} />
+          <MessageBubble key={i} message={msg} lang={lang} />
         ))}
 
         {loading && (
@@ -125,9 +164,9 @@ export function DrillDownChat({
         <div ref={scrollAnchor} />
       </div>
 
-      {followups.length > 0 && !loading && (
+      {activeFollowups.length > 0 && !loading ? (
         <div className="flex flex-wrap gap-2">
-          {followups.map((prompt) => (
+          {activeFollowups.map((prompt) => (
             <button
               key={prompt}
               type="button"
@@ -138,7 +177,7 @@ export function DrillDownChat({
             </button>
           ))}
         </div>
-      )}
+      ) : null}
 
       <form
         className="flex items-center gap-2 rounded-full border border-border bg-background p-1.5 shadow-sm"
@@ -167,10 +206,16 @@ export function DrillDownChat({
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, lang }: { message: ChatMessage; lang: Lang }) {
   if (message.role === "tool") return <ToolCallChip message={message} />;
 
   const isUser = message.role === "user";
+  // Prefer the tri-lingual bundle authored at write time (by the
+  // orchestrator for assistant turns, and for user turns via the same
+  // verbatim-translation pass). Falls back to the canonical single-
+  // locale `content` if the bundle is absent or the requested locale
+  // was not stored.
+  const displayed = message.content_i18n?.[lang] ?? message.content;
   return (
     <div
       className={cn(
@@ -180,12 +225,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           : "mr-auto rounded-bl-sm border-border bg-card text-card-foreground"
       )}
     >
-      <div className="whitespace-pre-wrap">{message.content}</div>
-      {message.chart_spec && (
+      <div className="whitespace-pre-wrap">{displayed}</div>
+      {message.chart_spec ? (
         <div className="rounded-lg border border-border/70 bg-background p-2 text-foreground">
           <ChartRenderer spec={message.chart_spec} />
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

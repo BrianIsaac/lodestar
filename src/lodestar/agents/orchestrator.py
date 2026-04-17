@@ -10,7 +10,7 @@ import logging
 
 from openai import AsyncOpenAI
 
-from lodestar.agents.compliance import apply_compliance
+from lodestar.agents.compliance import apply_compliance_multilingual
 from lodestar.config import settings
 from lodestar.models import ChatMessage, ChatResponse, ChartSpec
 
@@ -277,7 +277,7 @@ async def chat(
     customer_id: str,
     insight_context: str = "",
     language: str = "vi",
-) -> ChatResponse:
+) -> tuple[ChatResponse, dict[str, str]]:
     """Process a user message through the reactive orchestrator.
 
     Args:
@@ -288,7 +288,11 @@ async def chat(
             the system prompt that constrains the assistant's output.
 
     Returns:
-        ChatResponse with assistant message and optional chart.
+        A ``(ChatResponse, user_message_i18n)`` tuple. ``ChatResponse``
+        carries the assistant message (tri-lingual via ``content_i18n``)
+        plus tool trace and i18n follow-up chips. ``user_message_i18n``
+        is the user's last message translated verbatim into each locale
+        so the caller can persist it for the drill-down history replay.
     """
     client = _get_client()
 
@@ -302,12 +306,14 @@ async def chat(
         api_messages.append({"role": msg.role, "content": msg.content})
 
     try:
+        # Turn 1 — tool-calling turn. Kept cheap (max_tokens=512) because
+        # it only needs to decide whether to fire tools, not compose prose.
         response = await client.chat.completions.create(
             model=settings.llm_model,
             messages=api_messages,
             tools=TOOL_DEFINITIONS,
             temperature=0.7,
-            max_tokens=2048,
+            max_tokens=512,
         )
 
         choice = response.choices[0]
@@ -316,9 +322,6 @@ async def chat(
 
         if choice.message.tool_calls:
             # Execute every tool the LLM asked for, not just the first.
-            # Emitting multiple tool calls in one turn is legal per the
-            # OpenAI-compat contract and prior versions silently dropped
-            # all but `tool_calls[0]`.
             api_messages.append(choice.message.model_dump())
             for tool_call in choice.message.tool_calls:
                 tool_name = tool_call.function.name
@@ -343,27 +346,102 @@ async def chat(
                     "content": tool_result,
                 })
 
-            followup = await client.chat.completions.create(
-                model=settings.llm_model,
-                messages=api_messages,
-                temperature=0.7,
-                max_tokens=1024,
-            )
-            assistant_text = followup.choices[0].message.content or ""
-        else:
-            assistant_text = choice.message.content or ""
+        # Turn 2 — final synthesis turn. Always runs (tool or no-tool),
+        # and always emits tri-lingual JSON so a client language toggle
+        # can swap the bubble without a round-trip. Mirrors the detector
+        # pattern: tools stripped, response_format=json_object, bumped
+        # max_tokens. The user_message_i18n field is also authored here
+        # so the user bubble can swap on toggle too.
+        _raw_user = messages[-1].content if messages else ""
+        api_messages.append({
+            "role": "user",
+            "content": (
+                "Produce your final reply as a single JSON object with this "
+                "exact shape:\n"
+                "{\n"
+                '  "content_i18n": {"vi": "...", "en": "...", "ko": "..."},\n'
+                '  "user_message_i18n": {"vi": "...", "en": "...", "ko": "..."}\n'
+                "}\n"
+                "`content_i18n` is your assistant reply in all three locales, "
+                "consistent in meaning and tone across them. "
+                "`user_message_i18n` must contain the user's exact last "
+                "message translated verbatim into each locale — do not "
+                "rephrase, summarise or answer the user's message inside "
+                "this field; preserve register, abbreviations and informal "
+                "phrasing. Echo the original locale's value unchanged. "
+                f"The user's last message was: {_raw_user!r}."
+            ),
+        })
 
-        filtered_text, _ = apply_compliance(assistant_text, language=language)
+        final = await client.chat.completions.create(
+            model=settings.llm_model,
+            messages=api_messages,
+            temperature=0.3,
+            max_tokens=2048,
+            response_format={"type": "json_object"},
+        )
+        final_text = final.choices[0].message.content or "{}"
+
+        # JSON parsing with graceful fallback to single-locale so a
+        # malformed final-turn response still surfaces a useful bubble
+        # rather than a 502 to the user.
+        try:
+            parsed = json.loads(final_text)
+        except json.JSONDecodeError:
+            logger.warning("final-turn JSON parse failed; falling back to single locale")
+            parsed = {}
+
+        content_i18n_raw = parsed.get("content_i18n") if isinstance(parsed, dict) else None
+        user_i18n_raw = parsed.get("user_message_i18n") if isinstance(parsed, dict) else None
+
+        if not isinstance(content_i18n_raw, dict):
+            # Degraded path: treat the raw text as the requested-locale
+            # reply; other locales remain empty and will fall back to
+            # the `content` string on the client.
+            content_i18n_raw = {language: final_text}
+
+        # Coerce + trim to strings; drop any unknown locales.
+        content_i18n: dict[str, str] = {}
+        for lang in ("vi", "en", "ko"):
+            v = content_i18n_raw.get(lang)
+            if isinstance(v, str) and v.strip():
+                content_i18n[lang] = v
+
+        if not content_i18n:
+            content_i18n[language] = final_text
+
+        user_message_i18n: dict[str, str] = {}
+        if isinstance(user_i18n_raw, dict):
+            for lang in ("vi", "en", "ko"):
+                v = user_i18n_raw.get(lang)
+                if isinstance(v, str) and v.strip():
+                    user_message_i18n[lang] = v
+        # Always ensure the original locale reflects the verbatim user text.
+        if _raw_user:
+            user_message_i18n.setdefault(language, _raw_user)
+
+        # One multilingual compliance pass so a Vi refusal cannot ship
+        # next to untreated En/Ko advice-style copy.
+        filtered_i18n, _cls = apply_compliance_multilingual(content_i18n)
+
+        display_content = filtered_i18n.get(language) or filtered_i18n.get("vi") or final_text
+        followups_dict = {
+            "vi": _followups_for(tool_names, "vi"),
+            "en": _followups_for(tool_names, "en"),
+            "ko": _followups_for(tool_names, "ko"),
+        }
 
         return ChatResponse(
             message=ChatMessage(
                 role="assistant",
-                content=filtered_text,
+                content=display_content,
+                content_i18n=filtered_i18n or None,
                 chart_spec=chart_spec,
             ),
-            suggested_followups=_followups_for(tool_names, language),
+            suggested_followups=followups_dict.get(language, []),
+            suggested_followups_i18n=followups_dict,
             tool_calls=tool_names,
-        )
+        ), user_message_i18n
 
     except Exception:
         logger.exception("Orchestrator error")

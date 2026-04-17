@@ -102,19 +102,35 @@ class InsightFeed(BaseModel):
 
 
 class ChatMessage(BaseModel):
-    """A single message in a drill-down chat thread."""
+    """A single message in a drill-down chat thread.
+
+    ``content`` stays the canonical single-language string for backwards
+    compat and for tool messages that do not need localisation. When the
+    orchestrator produces a tri-lingual turn (and when the user's own
+    text is translated at write time) ``content_i18n`` carries the same
+    content keyed by locale so a client language toggle swaps the bubble
+    without any round-trip.
+    """
 
     role: str = Field(description="user | assistant | system | tool")
     content: str = ""
+    content_i18n: dict[str, str] | None = None
     chart_spec: ChartSpec | None = None
     insight_id: str | None = None
 
 
 class ChatResponse(BaseModel):
-    """Response from the reactive orchestrator."""
+    """Response from the reactive orchestrator.
+
+    ``suggested_followups`` holds the 3 follow-up chip strings resolved to
+    the request language. ``suggested_followups_i18n`` carries the same
+    chips keyed by locale so a client language toggle re-derives the chips
+    without a round-trip, matching how insight cards ship the i18n bundle.
+    """
 
     message: ChatMessage
     suggested_followups: list[str] = Field(default_factory=list)
+    suggested_followups_i18n: dict[str, list[str]] | None = None
     tool_calls: list[str] = Field(
         default_factory=list,
         description=(

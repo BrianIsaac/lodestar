@@ -427,7 +427,7 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
 
     try:
         messages = [ChatMessage(role="user", content=body.message, insight_id=insight_id)]
-        response = await chat(
+        response, user_message_i18n = await chat(
             messages,
             body.customer_id,
             body.insight_context,
@@ -440,16 +440,30 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
             detail=_system_error(body.language, e),
         ) from e
 
-    # Append the Q+A to the interaction timeline. If the detector is
-    # still recording the interaction row (rare race during very fast
-    # demo clicks) the appends become no-ops; the reflection block
-    # below handles the missing-row case with a short poll.
+    # Append the Q+A to the interaction timeline. The stored entries carry
+    # content_i18n so the history endpoint can replay bubbles with proper
+    # language-toggle behaviour. Each locale value is capped at 800 chars
+    # to bound the row size — the `messages` column is unbounded TEXT but
+    # a runaway chat could still blow up the row.
+    def _capped(d: dict[str, str] | None) -> dict[str, str]:
+        return {k: (v or "")[:800] for k, v in (d or {}).items()}
+
+    assistant_content = (response.message.content or "")[:800]
     await append_to_interaction(
-        insight_id, {"role": "user", "content": body.message}
+        insight_id,
+        {
+            "role": "user",
+            "content": body.message[:800],
+            "content_i18n": _capped(user_message_i18n) or None,
+        },
     )
     await append_to_interaction(
         insight_id,
-        {"role": "assistant", "content": (response.message.content or "")[:800]},
+        {
+            "role": "assistant",
+            "content": assistant_content,
+            "content_i18n": _capped(response.message.content_i18n) or None,
+        },
     )
 
     # First engagement (chat) is the earned_reward signal. Subsequent
@@ -525,6 +539,45 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
     return response
 
 
+@app.get("/chat/{insight_id}/history")
+async def chat_history(insight_id: str) -> list[ChatMessage]:
+    """Return the persisted user + assistant turns bound to an insight.
+
+    Used by the drill-down chat to restore its message list on remount
+    (navigating away and back would otherwise lose the thread, since the
+    component's message array lives only in React local state). Internal
+    timeline entries (``event`` / ``agent_reasoning`` / ``card``) are
+    hidden — callers only see what the customer actually exchanged with
+    the coach, with each bubble carrying ``content_i18n`` so a language
+    toggle swaps the text without a round-trip.
+    """
+    from lodestar.learning.interactions import get_interaction_for_insight
+
+    interaction = await get_interaction_for_insight(insight_id)
+    if interaction is None:
+        return []
+
+    out: list[ChatMessage] = []
+    for msg in interaction.get("messages") or []:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        if role not in ("user", "assistant"):
+            continue
+        content_i18n = msg.get("content_i18n")
+        if not isinstance(content_i18n, dict):
+            content_i18n = None
+        out.append(
+            ChatMessage(
+                role=role,
+                content=str(msg.get("content") or ""),
+                content_i18n=content_i18n,
+                insight_id=insight_id,
+            )
+        )
+    return out
+
+
 @app.post("/chat")
 async def chat_general(body: ChatRequest) -> ChatResponse:
     """General chat without a specific insight context.
@@ -539,7 +592,8 @@ async def chat_general(body: ChatRequest) -> ChatResponse:
         from lodestar.agents.orchestrator import chat
 
         messages = [ChatMessage(role="user", content=body.message)]
-        return await chat(messages, body.customer_id, language=body.language)
+        response, _ = await chat(messages, body.customer_id, language=body.language)
+        return response
     except Exception as e:
         logger.exception("Chat error")
         raise HTTPException(

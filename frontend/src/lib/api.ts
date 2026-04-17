@@ -1,6 +1,7 @@
 /** FastAPI client for the financial coach backend. */
 
 import type {
+  ChatMessage,
   ChatResponse,
   InsightCard,
   InsightFeed,
@@ -30,6 +31,14 @@ export async function dismissInsight(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ customer_id: customerId }),
   });
+}
+
+export async function fetchChatHistory(
+  insightId: string
+): Promise<ChatMessage[]> {
+  const res = await fetch(`${API}/chat/${insightId}/history`);
+  if (!res.ok) throw new Error(`History error: ${res.status}`);
+  return res.json();
 }
 
 export async function sendChat(

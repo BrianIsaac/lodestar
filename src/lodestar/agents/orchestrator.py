@@ -12,6 +12,33 @@ from collections import Counter
 
 from openai import AsyncOpenAI
 
+
+# Vietnamese-specific Latin letters — diacritics that distinguish vi from
+# plain en without needing a full language-detection library.
+_VIETNAMESE_CHARS = frozenset(
+    "ăâêôơưđĂÂÊÔƠƯĐ"
+    "áàảãạắằẳẵặấầẩẫậéèẻẽẹếềểễệíìỉĩịóòỏõọốồổỗộớờởỡợúùủũụứừửữựýỳỷỹỵ"
+    "ÁÀẢÃẠẮẰẲẴẶẤẦẨẪẬÉÈẺẼẸẾỀỂỄỆÍÌỈĨỊÓÒỎÕỌỐỒỔỖỘỚỜỞỠỢÚÙỦŨỤỨỪỬỮỰÝỲỶỸỴ"
+)
+
+
+def _detect_script(text: str) -> str:
+    """Classify a short string as ``"ko"`` / ``"vi"`` / ``"en"`` by script.
+
+    Used to validate per-locale slots in ``user_message_i18n``: a Hangul
+    string in the ``vi`` key is a failed translation that the LLM copied
+    verbatim from the source. Heuristic and deterministic — Hangul has a
+    dedicated Unicode block, Vietnamese is distinguished by its diacritic
+    Latin letters. Empty strings return ``"en"``.
+    """
+    if not text:
+        return "en"
+    if any("\uac00" <= c <= "\ud7a3" for c in text):
+        return "ko"
+    if any(c in _VIETNAMESE_CHARS for c in text):
+        return "vi"
+    return "en"
+
 from lodestar.agents.compliance import apply_compliance_multilingual
 from lodestar.config import settings
 from lodestar.models import ChatMessage, ChatResponse, ChartSpec
@@ -529,36 +556,76 @@ async def chat(
                 v = user_i18n_raw.get(lang)
                 if isinstance(v, str) and v.strip():
                     user_message_i18n[lang] = v
-        # Degenerate-translation guard: Qwen3 sometimes copies the source
-        # text verbatim into one or more locales instead of translating —
-        # e.g. the Korean original ends up in the `vi` key. If the same
-        # value appears in ≥ 2 locales, at least one of those is a failed
-        # translation (two distinct locales cannot genuinely share the
-        # same non-trivial translation unless the source was trivially
-        # short). Drop the duplicated entries entirely rather than leave
-        # stale copy in a locale that uses a different script; render
-        # falls back to the canonical `content` field in those locales.
+
+        # Script-mismatch guard: Qwen3 occasionally puts e.g. Korean Hangul
+        # into the `vi` slot because the LLM took a shortcut rather than
+        # actually translating. Such values render as Hangul inside a
+        # Vietnamese bubble on toggle. Detecting per-locale script is cheap
+        # and robust — Hangul has a dedicated code block, and the raw user
+        # text's script tells us which locale should legitimately carry it.
+        raw_script = _detect_script(_raw_user or "")
+        for lang_key in list(user_message_i18n.keys()):
+            val = user_message_i18n[lang_key]
+            val_script = _detect_script(val)
+            # The source locale SHOULD carry the original script; every
+            # other locale's value should be in its own script. A ko
+            # Hangul string in the vi slot is a failed translation.
+            if val_script == "ko" and lang_key != "ko":
+                logger.warning(
+                    "user_message_i18n[%s] contains Hangul (%s-script) — "
+                    "dropping as failed translation",
+                    lang_key,
+                    val_script,
+                )
+                del user_message_i18n[lang_key]
+
+        # Source-echo preservation: when the user's typed text matches the
+        # raw content, keep it in the locale whose script matches the
+        # source — that is the legitimate "verbatim in source locale"
+        # echo. Without this, a dup-only guard would lose the Korean
+        # original for a Korean user viewing in Korean. Re-populate the
+        # source locale's slot with the raw user text if it was dropped
+        # or never set by the LLM.
+        if _raw_user and _raw_user.strip() and raw_script in {"vi", "en", "ko"}:
+            user_message_i18n.setdefault(raw_script, _raw_user)
+
+        # Remaining duplicate guard: when two locales still share a value
+        # after the script check (e.g. two Latin-script strings that the
+        # LLM echoed from the source), one is a failed translation. Drop
+        # those non-source copies — the frontend fallback chain picks up
+        # the surviving entries.
         if len(user_message_i18n) >= 2 and _raw_user.strip():
             freq = Counter(user_message_i18n.values())
-            dup_values = {v for v, c in freq.items() if c >= 2}
-            if dup_values:
+            dups_to_drop = set()
+            for val, c in freq.items():
+                if c < 2:
+                    continue
+                # Keep the source-locale copy; drop the others.
+                owners = [
+                    lk for lk, lv in user_message_i18n.items() if lv == val
+                ]
+                if raw_script in owners:
+                    keepers = {raw_script}
+                else:
+                    # Fall back to keeping whichever owner is first.
+                    keepers = {owners[0]}
+                for o in owners:
+                    if o not in keepers:
+                        dups_to_drop.add(o)
+            if dups_to_drop:
                 logger.warning(
-                    "orchestrator produced duplicate values across locales "
-                    "for user_message_i18n (%d dup, %d total) — dropping "
-                    "the failed translations",
-                    sum(c for c in freq.values() if c >= 2),
-                    len(user_message_i18n),
+                    "user_message_i18n duplicate-locale guard dropping %s "
+                    "(kept source=%s)",
+                    sorted(dups_to_drop),
+                    raw_script,
                 )
-                user_message_i18n = {
-                    k: v
-                    for k, v in user_message_i18n.items()
-                    if v not in dup_values
-                }
-        # Only fall back to the raw user text when NOTHING translated — if
-        # any locale has a genuine translation, we want the frontend's
-        # fallback chain to pick that up for missing locales rather than
-        # force the request language to the raw source text, which would
-        # render (e.g.) Korean script inside a Vietnamese bubble.
+                for k in dups_to_drop:
+                    user_message_i18n.pop(k, None)
+
+        # Last-resort fallback: if NOTHING translated AND we haven't
+        # already set the source-locale copy above, write the raw user
+        # text into the request-language slot so the bubble is never
+        # empty.
         if _raw_user and not user_message_i18n:
             user_message_i18n[language] = _raw_user
 

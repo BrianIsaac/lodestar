@@ -110,7 +110,7 @@ export function ProductSearch({ initialQuery }: ProductSearchProps = {}) {
           disabled={loading}
         />
         <Button type="submit" size="sm" disabled={loading || !query.trim()}>
-          {loading ? <Spinner /> : t("products_search_button")}
+          {loading ? <Spinner aria-label={t("products_search_button")} /> : t("products_search_button")}
         </Button>
       </form>
 

@@ -142,7 +142,7 @@ export function InsightCard({ card, onDismiss, justArrived }: Props) {
 
         <Link
           href={`/insight/${card.insight_id}`}
-          className="flex items-center justify-end text-xs text-muted-foreground"
+          className="flex items-center justify-end rounded-md text-xs text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2"
         >
           <span className="flex items-center gap-1">
             {t("card_cta")}

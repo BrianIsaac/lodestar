@@ -406,10 +406,15 @@ async def chat(
                     tool_result = await _execute_tool(
                         tool_name, tool_args, language=language
                     )
-                except Exception as exc:
+                except Exception:
+                    # Stack + class name go to the log; only a generic
+                    # marker reaches the LLM's turn-2 context. Echoing a
+                    # raw exception class name (e.g. "ConnectionError")
+                    # via the LLM's synthesis would leak internals into
+                    # a user-visible chat bubble.
                     logger.exception("tool %s failed — marking failed", tool_name)
                     tool_result = json.dumps(
-                        {"error": f"tool execution failed: {type(exc).__name__}"},
+                        {"error": "tool unavailable"},
                         ensure_ascii=False,
                     )
 

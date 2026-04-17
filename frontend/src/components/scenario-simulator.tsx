@@ -297,7 +297,7 @@ export function ScenarioSimulator({ customerId }: Props) {
             <Button type="submit" disabled={loading} className="mt-4 w-full">
               {loading ? (
                 <>
-                  <Spinner data-icon="inline-start" />
+                  <Spinner data-icon="inline-start" aria-label={t("sim_running")} />
                   {t("sim_running")}
                 </>
               ) : (

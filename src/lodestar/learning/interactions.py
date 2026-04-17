@@ -49,6 +49,14 @@ async def record_interaction(
 async def append_to_interaction(insight_id: str, message: dict) -> str | None:
     """Append a single timeline entry to the interaction bound to an insight.
 
+    The SELECT and UPDATE are wrapped in ``BEGIN IMMEDIATE`` so two
+    concurrent callers (e.g. the background detector completing while
+    /dismiss is appending an engagement marker) serialise on the write
+    lock instead of racing on a read-modify-write of the ``messages``
+    blob. Without the explicit transaction WAL mode allows both
+    connections to SELECT the same snapshot and the later UPDATE
+    silently drops the earlier append.
+
     Args:
         insight_id: The card being discussed.
         message: One entry, e.g. {"role": "user", "content": "..."}.
@@ -59,21 +67,32 @@ async def append_to_interaction(insight_id: str, message: dict) -> str | None:
     """
     db = await get_db()
     try:
-        cursor = await db.execute(
-            "SELECT interaction_id, messages FROM interactions WHERE insight_id = ? ORDER BY created_at LIMIT 1",
-            (insight_id,),
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        existing = json.loads(row["messages"] or "[]")
-        existing.append(message)
-        await db.execute(
-            "UPDATE interactions SET messages = ? WHERE interaction_id = ?",
-            (json.dumps(existing, ensure_ascii=False), row["interaction_id"]),
-        )
-        await db.commit()
-        return row["interaction_id"]
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = await db.execute(
+                "SELECT interaction_id, messages FROM interactions WHERE insight_id = ? ORDER BY created_at LIMIT 1",
+                (insight_id,),
+            )
+            row = await cursor.fetchone()
+            if row is None:
+                await db.rollback()
+                return None
+            try:
+                existing = json.loads(row["messages"] or "[]")
+            except json.JSONDecodeError:
+                existing = []
+            if not isinstance(existing, list):
+                existing = []
+            existing.append(message)
+            await db.execute(
+                "UPDATE interactions SET messages = ? WHERE interaction_id = ?",
+                (json.dumps(existing, ensure_ascii=False), row["interaction_id"]),
+            )
+            await db.commit()
+            return row["interaction_id"]
+        except Exception:
+            await db.rollback()
+            raise
     finally:
         await db.close()
 

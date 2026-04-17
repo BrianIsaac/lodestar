@@ -455,7 +455,11 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
             trimmed = v.strip()
             if not trimmed:
                 continue
-            out[k] = v[:800]
+            # Store the stripped value so leading/trailing whitespace
+            # does not sneak into history bubbles. 800-char cap is
+            # applied to the trimmed form so the budget reflects the
+            # visible text.
+            out[k] = trimmed[:800]
         return out
 
     assistant_content = (response.message.content or "")[:800]

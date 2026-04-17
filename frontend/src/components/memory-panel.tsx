@@ -83,7 +83,7 @@ export function MemoryPanel({ customerId }: Props) {
 
       {status === "loading" ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Spinner className="size-4 text-primary" />
+          <Spinner className="size-4 text-primary" aria-label={t("memory_loading")} />
           {t("memory_loading")}
         </div>
       ) : null}

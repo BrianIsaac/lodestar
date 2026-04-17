@@ -152,7 +152,7 @@ export function DrillDownChat({
 
         {loading ? (
           <div className="mr-auto flex max-w-[85%] items-center gap-2 rounded-2xl rounded-bl-sm border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-            <Spinner className="size-4 text-primary" />
+            <Spinner className="size-4 text-primary" aria-label={t("chat_thinking")} />
             <span>{t("chat_thinking")}</span>
           </div>
         ) : null}

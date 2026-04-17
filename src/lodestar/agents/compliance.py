@@ -30,14 +30,22 @@ ADVICE_PATTERNS = [
 GUIDANCE_PATTERNS = [
     # Vietnamese
     r"(?i)có thể cân nhắc",
+    r"(?i)có thể xem xét",
+    r"(?i)có thể thử",
     r"(?i)một lựa chọn là",
+    r"(?i)bạn có thể",
+    r"(?i)hãy thử",
+    r"(?i)nên thử",
     # English
     r"(?i)you (might|could|may) (consider|want to)",
     r"(?i)consider",
     r"(?i)tip:",
+    r"(?i)it (might|may) help to",
     # Korean
     r"고려(해|하는\s*것을|할\s*수)",
     r"(조정|검토)해\s*보(십시오|세요)",
+    r"해\s*보는\s*것이\s*좋습니다",
+    r"시도해\s*보(십시오|세요)",
 ]
 
 DISCLAIMERS: dict[str, str] = {

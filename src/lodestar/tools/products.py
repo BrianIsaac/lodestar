@@ -1,7 +1,7 @@
-"""Product search, comparison, and eligibility tools."""
+"""Product search and eligibility tools."""
 
 from lodestar.database import get_db
-from lodestar.models import ComparisonTable, EligibilityResult, ProductFilters, ProductInfo
+from lodestar.models import EligibilityResult, ProductFilters, ProductInfo
 from lodestar.rag import retriever
 
 
@@ -18,36 +18,6 @@ async def search_products(
         Ranked list of matching products.
     """
     return retriever.search_products(query, filters)
-
-
-async def compare_products(product_ids: list[str]) -> ComparisonTable:
-    """Side-by-side comparison of selected products.
-
-    Args:
-        product_ids: List of product IDs to compare.
-
-    Returns:
-        ComparisonTable with aligned rows.
-    """
-    products = []
-    for pid in product_ids:
-        results = retriever.search_products(pid, limit=1)
-        if results:
-            products.append(results[0])
-
-    columns = ["name_vi", "product_type", "entity", "interest_rate", "min_income"]
-    rows = []
-    for p in products:
-        rows.append({
-            "product_id": p.product_id,
-            "name_vi": p.name_vi,
-            "product_type": p.product_type,
-            "entity": p.entity,
-            "interest_rate": p.interest_rate,
-            "min_income": p.min_income,
-        })
-
-    return ComparisonTable(product_ids=product_ids, columns=columns, rows=rows)
 
 
 async def check_eligibility(
@@ -83,11 +53,11 @@ async def check_eligibility(
             reasons=["Product not found"],
         )
 
-    p = points[0].payload
+    p = points[0].payload or {}
     product = ProductInfo(
-        product_id=p["product_id"],
-        entity=p["entity"],
-        product_type=p["product_type"],
+        product_id=p.get("product_id", product_id),
+        entity=p.get("entity", ""),
+        product_type=p.get("product_type", ""),
         name_vi=p.get("name_vi", ""),
         min_income=p.get("min_income"),
         interest_rate=p.get("interest_rate"),

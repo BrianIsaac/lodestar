@@ -14,6 +14,10 @@ from lodestar.database import get_db
 from lodestar.models import EntityImpact, ScenarioResult
 from lodestar.tools.spending import compute_income_pattern
 
+SUPPORTED_SCENARIOS: frozenset[str] = frozenset(
+    {"home_purchase", "career_change", "new_baby", "marriage"}
+)
+
 
 def _fmt(n: float) -> str:
     """Format a number as a thousands-separated integer — lang-neutral."""
@@ -107,6 +111,43 @@ _T: dict[str, dict[str, str]] = {
         "en": "Portfolio: {portfolio} VND. Keep liquid during the first year.",
         "ko": "포트폴리오: {portfolio} VND. 첫 해에는 유동성을 유지하세요.",
     },
+    # marriage scenario
+    "marriage_bank": {
+        "vi": (
+            "Thu nhập kết hợp: {combined} VND/tháng "
+            "(của bạn {self_inc} + của bạn đời {partner_inc}). "
+            "Tiết kiệm hiện tại {savings} VND."
+        ),
+        "en": (
+            "Combined income: {combined} VND/month "
+            "(yours {self_inc} + partner {partner_inc}). "
+            "Current savings: {savings} VND."
+        ),
+        "ko": (
+            "합산 소득: 월 {combined} VND "
+            "(본인 {self_inc} + 배우자 {partner_inc}). "
+            "현재 저축: {savings} VND."
+        ),
+    },
+    "marriage_life": {
+        "vi": (
+            "Bảo hiểm hiện tại {coverage} VND. Khuyến nghị sau kết hôn: {recommended} VND "
+            "(bao gồm quỹ dự phòng cho gia đình)."
+        ),
+        "en": (
+            "Current coverage {coverage} VND. Recommended after marriage: {recommended} VND "
+            "(covers family contingency)."
+        ),
+        "ko": (
+            "현재 보장액 {coverage} VND. 결혼 후 권장 보장액: {recommended} VND "
+            "(가족 비상자금 포함)."
+        ),
+    },
+    "marriage_finance": {
+        "vi": "Chi phí kết hôn ước tính {cost} VND (đám cưới + nhà cửa ban đầu).",
+        "en": "Estimated wedding and setup cost: {cost} VND (ceremony + initial home setup).",
+        "ko": "예상 결혼 비용: {cost} VND (예식 + 초기 주거 정착).",
+    },
 }
 
 
@@ -132,7 +173,17 @@ async def simulate_scenario(
 
     Returns:
         ScenarioResult with per-entity impact and combined cashflow analysis.
+
+    Raises:
+        ValueError: When ``scenario_type`` is not one of the values listed
+            in :data:`SUPPORTED_SCENARIOS`.
     """
+    if scenario_type not in SUPPORTED_SCENARIOS:
+        raise ValueError(
+            f"Unsupported scenario_type={scenario_type!r}; expected one of "
+            f"{sorted(SUPPORTED_SCENARIOS)}"
+        )
+
     income = await compute_income_pattern(customer_id)
     monthly_income = income.average_income
 
@@ -263,6 +314,68 @@ async def simulate_scenario(
             entity="securities",
             summary=_line("baby_securities", language, portfolio=_fmt(portfolio_value)),
             metrics={"portfolio_value": portfolio_value},
+        ))
+
+    elif scenario_type == "marriage":
+        partner_income = float(parameters.get("partner_income", monthly_income))
+        wedding_cost = float(parameters.get("wedding_cost", 200_000_000))
+        # Shared-expense uplift: a joint household covers rent, bills and
+        # food once — so existing outflows stay flat while the second
+        # income becomes mostly saveable. We model this as additional
+        # saveable cashflow rather than additional spending.
+        combined_income = monthly_income + partner_income
+        additional_monthly = -partner_income  # partner income improves cashflow
+
+        savings_balance = sum(
+            a["balance"] for a in account_map.get("bank", [])
+            if a["account_type"] == "savings" and a["balance"] > 0
+        )
+        entity_impacts.append(EntityImpact(
+            entity="bank",
+            summary=_line(
+                "marriage_bank", language,
+                combined=_fmt(combined_income),
+                self_inc=_fmt(monthly_income),
+                partner_inc=_fmt(partner_income),
+                savings=_fmt(savings_balance),
+            ),
+            metrics={
+                "combined_income": combined_income,
+                "self_income": monthly_income,
+                "partner_income": partner_income,
+                "savings_balance": savings_balance,
+            },
+        ))
+
+        finance_debt = sum(
+            abs(a["balance"]) for a in account_map.get("finance", [])
+            if a["balance"] < 0
+        )
+        entity_impacts.append(EntityImpact(
+            entity="finance",
+            summary=_line("marriage_finance", language, cost=_fmt(wedding_cost)),
+            metrics={
+                "wedding_cost": wedding_cost,
+                "existing_debt": finance_debt,
+            },
+        ))
+
+        insurance_coverage = sum(
+            a["balance"] for a in account_map.get("life", [])
+            if a["balance"] > 0
+        )
+        recommended_coverage = max(combined_income * 60, 1_000_000_000)
+        entity_impacts.append(EntityImpact(
+            entity="life",
+            summary=_line(
+                "marriage_life", language,
+                coverage=_fmt(insurance_coverage),
+                recommended=_fmt(recommended_coverage),
+            ),
+            metrics={
+                "current_coverage": insurance_coverage,
+                "recommended_coverage": recommended_coverage,
+            },
         ))
 
     elif scenario_type == "home_purchase":

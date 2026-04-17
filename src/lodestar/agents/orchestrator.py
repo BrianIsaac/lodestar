@@ -112,7 +112,7 @@ TOOL_DEFINITIONS = [
                 "type": "object",
                 "properties": {
                     "customer_id": {"type": "string"},
-                    "scenario_type": {"type": "string", "description": "home_purchase | career_change | new_baby"},
+                    "scenario_type": {"type": "string", "description": "home_purchase | career_change | new_baby | marriage"},
                     "parameters": {"type": "object", "description": "Scenario-specific parameters"},
                 },
                 "required": ["customer_id", "scenario_type"],
@@ -315,26 +315,33 @@ async def chat(
         tool_names: list[str] = []
 
         if choice.message.tool_calls:
-            tool_call = choice.message.tool_calls[0]
-            tool_name = tool_call.function.name
-            tool_names.append(tool_name)
-            tool_args = json.loads(tool_call.function.arguments)
-
-            if "customer_id" not in tool_args:
-                tool_args["customer_id"] = customer_id
-
-            tool_result = await _execute_tool(tool_name, tool_args, language=language)
-            tool_data = json.loads(tool_result)
-
-            if "chart_spec" in tool_data and tool_data["chart_spec"]:
-                chart_spec = ChartSpec(**tool_data["chart_spec"])
-
+            # Execute every tool the LLM asked for, not just the first.
+            # Emitting multiple tool calls in one turn is legal per the
+            # OpenAI-compat contract and prior versions silently dropped
+            # all but `tool_calls[0]`.
             api_messages.append(choice.message.model_dump())
-            api_messages.append({
-                "role": "tool",
-                "tool_call_id": tool_call.id,
-                "content": tool_result,
-            })
+            for tool_call in choice.message.tool_calls:
+                tool_name = tool_call.function.name
+                tool_names.append(tool_name)
+                try:
+                    tool_args = json.loads(tool_call.function.arguments)
+                except json.JSONDecodeError:
+                    tool_args = {}
+
+                if "customer_id" not in tool_args:
+                    tool_args["customer_id"] = customer_id
+
+                tool_result = await _execute_tool(tool_name, tool_args, language=language)
+                tool_data = json.loads(tool_result)
+
+                if chart_spec is None and tool_data.get("chart_spec"):
+                    chart_spec = ChartSpec(**tool_data["chart_spec"])
+
+                api_messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": tool_result,
+                })
 
             followup = await client.chat.completions.create(
                 model=settings.llm_model,

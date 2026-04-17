@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from typing import Any, AsyncIterator
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
@@ -189,6 +189,9 @@ async def get_insight_feed(
             )
             title = (title_i18n or {}).get(lang) or r["title"]
             summary = (summary_i18n or {}).get(lang) or r["summary"]
+            chart_spec = _load_chart_spec(
+                r["chart_spec"] if "chart_spec" in cols else None
+            )
             cards.append(
                 InsightCard(
                     insight_id=r["insight_id"],
@@ -200,6 +203,7 @@ async def get_insight_feed(
                     action_hint_i18n=action_hint_i18n,
                     quick_prompts_i18n=quick_prompts_i18n,
                     severity=r["severity"],
+                    chart_spec=chart_spec,
                     compliance_class=r["compliance_class"],
                     priority_score=r["priority_score"],
                     dismissed=bool(r["dismissed"]),
@@ -222,6 +226,26 @@ def _load_json_dict(raw: str | None) -> dict[str, str] | None:
     except (TypeError, ValueError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def _load_chart_spec(raw: str | None):
+    """Parse the chart_spec JSON column into a ChartSpec, returning None on
+    empty/bad input. Declared as a local import so ChartSpec stays out of the
+    hot path for feeds that don't carry a chart."""
+    if not raw:
+        return None
+    try:
+        value = json.loads(raw)
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(value, dict):
+        return None
+    from lodestar.models import ChartSpec
+
+    try:
+        return ChartSpec(**value)
+    except Exception:
+        return None
 
 
 def _load_action_hint(raw: str | None) -> dict[str, list[str]] | None:
@@ -300,7 +324,16 @@ async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
     finally:
         await db.close()
 
-    interaction = await get_interaction_for_insight(insight_id)
+    # The detector agent runs as a background task after /demo/transaction
+    # returns; an impatient dismiss can arrive before record_interaction
+    # commits. Poll briefly so the reflection/lesson arc is not silently
+    # skipped for fast demo clicks.
+    interaction = None
+    for _ in range(10):
+        interaction = await get_interaction_for_insight(insight_id)
+        if interaction:
+            break
+        await asyncio.sleep(0.25)
     await append_to_interaction(
         insight_id, {"role": "engagement", "content": "dismissed"}
     )
@@ -388,11 +421,15 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         )
     except Exception as e:
         logger.exception("Chat error")
-        return ChatResponse(
-            message=ChatMessage(role="assistant", content=_system_error(body.language, e)),
-        )
+        raise HTTPException(
+            status_code=502,
+            detail=_system_error(body.language, e),
+        ) from e
 
-    # Append the Q+A to the interaction timeline.
+    # Append the Q+A to the interaction timeline. If the detector is
+    # still recording the interaction row (rare race during very fast
+    # demo clicks) the appends become no-ops; the reflection block
+    # below handles the missing-row case with a short poll.
     await append_to_interaction(
         insight_id, {"role": "user", "content": body.message}
     )
@@ -405,7 +442,12 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
     # turns on the same insight reinforce the conversation but must not
     # re-fire reflection — that would inflate the reflection count and
     # double-boost lesson confidence on every turn.
-    interaction = await get_interaction_for_insight(insight_id)
+    interaction = None
+    for _ in range(10):
+        interaction = await get_interaction_for_insight(insight_id)
+        if interaction:
+            break
+        await asyncio.sleep(0.25)
     if interaction:
         interaction_id = interaction["interaction_id"]
         already_reflected = await has_reflection_for_interaction(
@@ -481,9 +523,10 @@ async def chat_general(body: ChatRequest) -> ChatResponse:
         return await chat(messages, body.customer_id, language=body.language)
     except Exception as e:
         logger.exception("Chat error")
-        return ChatResponse(
-            message=ChatMessage(role="assistant", content=_system_error(body.language, e)),
-        )
+        raise HTTPException(
+            status_code=502,
+            detail=_system_error(body.language, e),
+        ) from e
 
 
 _SYSTEM_ERROR: dict[str, str] = {
@@ -513,12 +556,15 @@ async def simulate_scenario(request: ScenarioRequest) -> ScenarioResult:
     """
     from lodestar.tools.simulation import simulate_scenario as _simulate
 
-    return await _simulate(
-        customer_id=request.customer_id,
-        scenario_type=request.scenario_type,
-        parameters=request.parameters,
-        language=request.language,
-    )
+    try:
+        return await _simulate(
+            customer_id=request.customer_id,
+            scenario_type=request.scenario_type,
+            parameters=request.parameters,
+            language=request.language,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # --- Goals ---
@@ -750,6 +796,9 @@ async def stream_insights(customer_id: str) -> EventSourceResponse:
                 quick_prompts_i18n = _load_quick_prompts(
                     r["quick_prompts_i18n"] if "quick_prompts_i18n" in r.keys() else None
                 )
+                chart_spec = _load_chart_spec(
+                    r["chart_spec"] if "chart_spec" in r.keys() else None
+                )
                 payload = {
                     "insight_id": iid,
                     "customer_id": r["customer_id"],
@@ -769,6 +818,7 @@ async def stream_insights(customer_id: str) -> EventSourceResponse:
                         if quick_prompts_i18n
                         else None
                     ),
+                    "chart_spec": chart_spec.model_dump() if chart_spec else None,
                     "severity": r["severity"],
                     "priority_score": r["priority_score"],
                     "dismissed": bool(r["dismissed"]),

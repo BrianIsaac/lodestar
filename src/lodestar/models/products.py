@@ -52,14 +52,6 @@ class EligibilityResult(BaseModel):
     reasons: list[str] = Field(default_factory=list)
 
 
-class ComparisonTable(BaseModel):
-    """Side-by-side product comparison."""
-
-    product_ids: list[str]
-    columns: list[str] = Field(default_factory=list)
-    rows: list[dict] = Field(default_factory=list)
-
-
 class EntityImpact(BaseModel):
     """Impact of a scenario on a single Shinhan entity."""
 
@@ -72,7 +64,9 @@ class ScenarioRequest(BaseModel):
     """Request to simulate a financial scenario."""
 
     customer_id: str
-    scenario_type: str = Field(description="home_purchase | career_change | new_baby | marriage")
+    scenario_type: str = Field(
+        description="home_purchase | career_change | new_baby | marriage"
+    )
     parameters: dict = Field(default_factory=dict)
     language: str = Field(default="vi", description="Display language: vi | en | ko")
 

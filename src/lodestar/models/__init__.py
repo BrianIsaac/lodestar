@@ -26,7 +26,6 @@ from lodestar.models.learning import (
 )
 from lodestar.models.products import (
     AffordabilityResult,
-    ComparisonTable,
     EligibilityResult,
     EntityImpact,
     GoalProjection,
@@ -49,7 +48,6 @@ __all__ = [
     "ChatMessage",
     "ChatResponse",
     "CohortInsight",
-    "ComparisonTable",
     "ComplianceClass",
     "CustomerLesson",
     "CustomerProfile",

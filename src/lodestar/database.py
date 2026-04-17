@@ -82,7 +82,6 @@ CREATE TABLE IF NOT EXISTS cohort_insights (
     insight TEXT,
     confidence REAL DEFAULT 0.5,
     supporting_count INTEGER DEFAULT 0,
-    effectiveness REAL DEFAULT 0.0,
     PRIMARY KEY (cohort_key, pattern_type)
 );
 

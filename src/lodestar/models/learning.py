@@ -1,8 +1,19 @@
 """Learning loop data models — lessons, reflections, cohort insights."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
+
+
+def _utc_naive_now() -> datetime:
+    """Timezone-naive UTC timestamp used for schema compatibility.
+
+    SQLite stores datetimes as ISO strings and the journal reader compares
+    them to a naive `datetime.now(UTC).replace(tzinfo=None)`. Keeping the
+    factory naive preserves that contract without reintroducing the
+    deprecated ``datetime.utcnow()``.
+    """
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class CustomerLesson(BaseModel):
@@ -21,7 +32,7 @@ class CustomerLesson(BaseModel):
     times_evolved: int = 0
     supporting_months: list[str] = Field(default_factory=list)
     embedding: bytes | None = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_naive_now)
 
 
 class CustomerReflection(BaseModel):
@@ -36,7 +47,7 @@ class CustomerReflection(BaseModel):
         description="earned_reward | bad_luck | dumb_luck | just_desserts"
     )
     lesson_extracted: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_naive_now)
 
 
 class CohortInsight(BaseModel):
@@ -48,5 +59,4 @@ class CohortInsight(BaseModel):
     insight: str
     confidence: float = Field(0.5, ge=0, le=1)
     supporting_count: int = 0
-    effectiveness: float = Field(0.0, ge=0, le=1)
     min_customers: int = 5

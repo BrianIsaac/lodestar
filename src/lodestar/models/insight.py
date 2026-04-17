@@ -1,9 +1,14 @@
 """Insight feed and chart data models."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field
+
+
+def _utc_naive_now() -> datetime:
+    """Timezone-naive UTC default for SQLite compatibility."""
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 class InsightSeverity(StrEnum):
@@ -83,7 +88,7 @@ class InsightCard(BaseModel):
     chart_spec: ChartSpec | None = None
     suggested_actions: list[str] = Field(default_factory=list)
     compliance_class: ComplianceClass = ComplianceClass.INFORMATION
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_utc_naive_now)
     dismissed: bool = False
     priority_score: float = 0.0
 
@@ -103,14 +108,6 @@ class ChatMessage(BaseModel):
     content: str = ""
     chart_spec: ChartSpec | None = None
     insight_id: str | None = None
-
-
-class InsightCardI18n(BaseModel):
-    """Parallel structure carrying title/summary in every supported locale."""
-
-    vi: str = ""
-    en: str = ""
-    ko: str = ""
 
 
 class ChatResponse(BaseModel):

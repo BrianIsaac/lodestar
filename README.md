@@ -182,7 +182,7 @@ The detector agent is given a Shinhan product map in its system prompt so `produ
 
 ### 5. Per-customer learning journal
 - **Lessons** carry bge-m3 embeddings (1024-dim), confidence ∈ [0,1], importance ∈ [1,10], supporting months, and an evolution counter that increments when a new lesson's embedding is cosine-similar (>0.85) to an existing one.
-- **Reflections** grade every interaction on Van Tharp's process × outcome axes. Only `earned_reward` and `just_desserts` quadrants extract lessons — a lucky good outcome doesn't teach the system false patterns.
+- **Reflections** grade every interaction on Van Tharp's process × outcome axes. Only reflections with process grade A or B AND confidence ≥ 0.70 extract lessons — so `dumb_luck` (bad process + good outcome) can't teach the system false patterns.
 - **Cohort aggregation** rolls anonymised lessons into a `{city}_{segment}` bucket with a 5-customer threshold before a cohort insight becomes retrievable. No names, DOBs, or account IDs leave the per-customer layer.
 
 ### 6. Demo controls

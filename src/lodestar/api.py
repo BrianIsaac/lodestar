@@ -444,9 +444,19 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
     # content_i18n so the history endpoint can replay bubbles with proper
     # language-toggle behaviour. Each locale value is capped at 800 chars
     # to bound the row size — the `messages` column is unbounded TEXT but
-    # a runaway chat could still blow up the row.
+    # a runaway chat could still blow up the row. Empty-string locales are
+    # dropped so the history replay never surfaces a blank bubble for a
+    # locale that compliance silently stripped to "".
     def _capped(d: dict[str, str] | None) -> dict[str, str]:
-        return {k: (v or "")[:800] for k, v in (d or {}).items()}
+        out: dict[str, str] = {}
+        for k, v in (d or {}).items():
+            if not isinstance(v, str):
+                continue
+            trimmed = v.strip()
+            if not trimmed:
+                continue
+            out[k] = v[:800]
+        return out
 
     assistant_content = (response.message.content or "")[:800]
     await append_to_interaction(

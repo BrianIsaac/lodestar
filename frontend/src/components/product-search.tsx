@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Search, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
@@ -54,6 +54,8 @@ export function ProductSearch({ initialQuery }: ProductSearchProps = {}) {
       ? "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
       : "flex flex-col gap-2";
 
+  const cancelledRef = useRef(false);
+
   async function run(text: string) {
     const q = text.trim();
     if (!q) return;
@@ -62,21 +64,29 @@ export function ProductSearch({ initialQuery }: ProductSearchProps = {}) {
     setSearched(true);
     try {
       const list = await searchProducts(q, lang);
+      if (cancelledRef.current) return;
       setResults(list);
     } catch {
+      if (cancelledRef.current) return;
       toast.error(t("products_fetch_error"));
       setResults([]);
     } finally {
-      setLoading(false);
+      if (!cancelledRef.current) setLoading(false);
     }
   }
 
   // Auto-run the search when initialQuery is provided (feed quick-prompt
-  // cross-link). Runs only once per initialQuery value.
+  // cross-link). Runs only once per initialQuery value, and cancels any
+  // in-flight fetch on unmount so setState-after-unmount cannot fire
+  // under React 19 strict-mode double-invocation.
   useEffect(() => {
+    cancelledRef.current = false;
     if (initialQuery && initialQuery.trim()) {
       run(initialQuery);
     }
+    return () => {
+      cancelledRef.current = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 

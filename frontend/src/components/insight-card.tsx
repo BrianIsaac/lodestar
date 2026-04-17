@@ -79,7 +79,7 @@ export function InsightCard({ card, onDismiss, justArrived }: Props) {
       <div className="flex flex-col gap-3 p-4">
         <Link
           href={`/insight/${card.insight_id}`}
-          className="flex items-start gap-3 pr-8 focus-visible:outline-none"
+          className="flex items-start gap-3 rounded-lg pr-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 focus-visible:ring-offset-2"
         >
           <span
             className={cn(

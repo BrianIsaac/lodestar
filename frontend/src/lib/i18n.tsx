@@ -114,12 +114,6 @@ const DICT = {
     en: "Agent is running checks against the rule set and recent history. If something's worth knowing, a card will land here.",
     ko: "에이전트가 규칙과 최근 거래를 검토 중입니다. 주목할 만한 것이 있으면 여기에 카드가 표시됩니다.",
   },
-  coach_silent_toast: {
-    vi: "Coach không thấy gì đáng chú ý từ giao dịch này.",
-    en: "Coach saw nothing notable in that transaction.",
-    ko: "이 거래에서 코치가 특별히 주목할 만한 점을 찾지 못했습니다.",
-  },
-
   // Demo panel
   demo_open: { vi: "Mô phỏng", en: "Simulate", ko: "시뮬레이션" },
   demo_close: { vi: "Đóng", en: "Close", ko: "닫기" },
@@ -239,11 +233,6 @@ const DICT = {
     vi: "Bộ nhớ của Coach",
     en: "Coach memory",
     ko: "코치 메모리",
-  },
-  memory_open: {
-    vi: "Xem bộ nhớ",
-    en: "Inspect memory",
-    ko: "메모리 확인",
   },
   memory_description: {
     vi: "Bài học, phản hồi và tổng hợp cohort mà Coach đã tích lũy cho khách hàng này.",

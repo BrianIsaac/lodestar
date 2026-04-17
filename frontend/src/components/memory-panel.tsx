@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Brain, RefreshCw } from "lucide-react";
 import {
   fetchMemory,
@@ -29,20 +29,29 @@ export function MemoryPanel({ customerId }: Props) {
   const { t } = useT();
   const [snapshot, setSnapshot] = useState<MemorySnapshot | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "error">("loading");
+  const cancelledRef = useRef(false);
 
   const load = useCallback(async () => {
     setStatus("loading");
     try {
       const data = await fetchMemory(customerId);
+      if (cancelledRef.current) return;
       setSnapshot(data);
       setStatus("idle");
     } catch {
+      if (cancelledRef.current) return;
       setStatus("error");
     }
   }, [customerId]);
 
   useEffect(() => {
+    cancelledRef.current = false;
     load();
+    return () => {
+      // Prevent setState after unmount under React 19 strict-mode
+      // double-invocation.
+      cancelledRef.current = true;
+    };
   }, [load]);
 
   const lessons = snapshot?.lessons ?? [];

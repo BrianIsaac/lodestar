@@ -122,7 +122,8 @@ class TestModels:
             insight="Overspending on dining correlates with public holidays",
             supporting_count=75,
         )
-        assert ci.min_customers == 5
+        assert ci.supporting_count == 75
+        assert ci.cohort_key == "hcmc_young_professional_mid_income"
 
     def test_product_info(self) -> None:
         p = ProductInfo(

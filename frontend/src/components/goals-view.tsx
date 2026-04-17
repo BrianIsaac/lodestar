@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Target } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -52,23 +52,30 @@ interface Props {
 export function GoalsView({ customerId, goalPreset }: Props) {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  const cancelledRef = useRef(false);
   const { t } = useT();
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const list = await fetchGoals(customerId);
+      if (cancelledRef.current) return;
       setGoals(list);
     } catch {
+      if (cancelledRef.current) return;
       toast.error(t("goals_fetch_error"));
       setGoals([]);
     } finally {
-      setLoading(false);
+      if (!cancelledRef.current) setLoading(false);
     }
   }, [customerId, t]);
 
   useEffect(() => {
+    cancelledRef.current = false;
     refresh();
+    return () => {
+      cancelledRef.current = true;
+    };
   }, [refresh]);
 
   return (

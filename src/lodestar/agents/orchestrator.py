@@ -184,9 +184,17 @@ _ERROR_MESSAGES = {
 }
 
 
+_JSON_DECODER = json.JSONDecoder()
+
+
 def _parse_final_json(raw: str) -> dict:
     """Parse the final-turn response, extracting a JSON object even when
     the model wraps it in a preamble like "Here is the JSON: {…}".
+
+    Uses :class:`json.JSONDecoder.raw_decode` for the preamble case so
+    string-escaped braces inside the JSON payload do not confuse the
+    parse — a naive brace counter would terminate early on content like
+    ``{"example":"use {key: value}"}``.
 
     Returns the parsed dict or an empty dict if no JSON object can be
     recovered. The caller is responsible for surfacing a localised
@@ -200,26 +208,20 @@ def _parse_final_json(raw: str) -> dict:
     if isinstance(value, dict):
         return value
 
-    # Preamble fallback: locate the first balanced top-level object and
-    # try again. json_object response_format usually prevents this case,
-    # but some Qwen builds prefix "Here is your reply:" despite the flag.
+    # Preamble / suffix fallback: scan for every `{` and let the proper
+    # decoder tell us where the object ends. response_format=json_object
+    # usually prevents this case, but some Qwen builds prefix "Here is
+    # the JSON: …" despite the flag.
     start = raw.find("{")
-    if start == -1:
-        return {}
-    depth = 0
-    for i in range(start, len(raw)):
-        ch = raw[i]
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                candidate = raw[start : i + 1]
-                try:
-                    value = json.loads(candidate)
-                except json.JSONDecodeError:
-                    return {}
-                return value if isinstance(value, dict) else {}
+    while start != -1:
+        try:
+            value, _end = _JSON_DECODER.raw_decode(raw, start)
+        except json.JSONDecodeError:
+            start = raw.find("{", start + 1)
+            continue
+        if isinstance(value, dict):
+            return value
+        start = raw.find("{", start + 1)
     return {}
 
 
@@ -370,21 +372,31 @@ async def chat(
 
         if choice.message.tool_calls:
             # Execute every tool the LLM asked for, not just the first.
+            # Every tool_call in the assistant message MUST have a matching
+            # `role="tool"` reply before turn 2 or the OpenAI-compat
+            # contract is violated and the model sees a malformed
+            # conversation. On parse/exec failure we still append a
+            # synthetic error result so the pairing stays intact.
             api_messages.append(choice.message.model_dump())
             for tool_call in choice.message.tool_calls:
                 tool_name = tool_call.function.name
                 tool_names.append(tool_name)
+
                 try:
                     tool_args = json.loads(tool_call.function.arguments)
                 except json.JSONDecodeError:
                     logger.warning(
-                        "tool_call args failed JSON parse for %s — skipping tool",
+                        "tool_call args failed JSON parse for %s — marking failed",
                         tool_name,
                     )
-                    # Skip this tool entirely rather than fire it with a
-                    # missing required parameter (e.g. `period` for
-                    # spending_analysis) which would raise inside the
-                    # workflow and 502 the whole chat.
+                    api_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(
+                            {"error": "arguments were not valid JSON"},
+                            ensure_ascii=False,
+                        ),
+                    })
                     continue
 
                 if "customer_id" not in tool_args:
@@ -394,9 +406,12 @@ async def chat(
                     tool_result = await _execute_tool(
                         tool_name, tool_args, language=language
                     )
-                except Exception:
-                    logger.exception("tool %s failed — continuing without it", tool_name)
-                    continue
+                except Exception as exc:
+                    logger.exception("tool %s failed — marking failed", tool_name)
+                    tool_result = json.dumps(
+                        {"error": f"tool execution failed: {type(exc).__name__}"},
+                        ensure_ascii=False,
+                    )
 
                 try:
                     tool_data = json.loads(tool_result)

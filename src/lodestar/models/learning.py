@@ -51,7 +51,11 @@ class CustomerReflection(BaseModel):
 
 
 class CohortInsight(BaseModel):
-    """Anonymised, aggregated insight from multiple customers."""
+    """Anonymised, aggregated insight from multiple customers.
+
+    The cohort surfacing threshold lives on ``settings.cohort_min_customers``;
+    exposing it on the model caused drift because callers never read it back.
+    """
 
     cohort_key: str = Field(description="e.g. hcmc_young_professional_mid_income")
     pattern_type: str
@@ -59,4 +63,3 @@ class CohortInsight(BaseModel):
     insight: str
     confidence: float = Field(0.5, ge=0, le=1)
     supporting_count: int = 0
-    min_customers: int = 5

@@ -365,17 +365,9 @@ async def chat(
             tool_calls=tool_names,
         )
 
-    except Exception as e:
+    except Exception:
         logger.exception("Orchestrator error")
-        error_messages = {
-            "vi": "Xin lỗi, đã xảy ra lỗi. Vui lòng thử lại.",
-            "en": "Sorry, something went wrong. Please try again.",
-            "ko": "죄송합니다. 오류가 발생했습니다. 다시 시도해주세요.",
-        }
-        msg = error_messages.get(language, error_messages["vi"])
-        return ChatResponse(
-            message=ChatMessage(
-                role="assistant",
-                content=f"{msg} ({type(e).__name__})",
-            ),
-        )
+        # Let the API layer map this to a 502 with a localised detail so
+        # the HTTP status carries the real failure signal; a 200 with
+        # error text would hide the failure from monitoring/retries.
+        raise

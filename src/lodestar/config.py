@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     background_poll_interval: int = 30
+    cohort_min_customers: int = 5
 
     model_config = {"env_prefix": "COACH_"}
 

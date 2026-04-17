@@ -1,7 +1,10 @@
 """Reflection on interaction quality — Van Tharp process/outcome separation.
 
-For the PoC, reflection uses rule-based heuristics rather than an LLM.
-In production, the LLM would evaluate process quality more nuancedly.
+Reflection graders the runtime process by mapping a caller-supplied grade
+(A-F) and outcome (good/bad) into one of four quadrants: earned_reward,
+bad_luck, dumb_luck, just_desserts. The grading itself is deterministic
+so a reflection record is reproducible from its inputs — no LLM call,
+no temperature.
 """
 
 import uuid

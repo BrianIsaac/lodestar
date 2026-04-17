@@ -56,9 +56,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.exception("Embedder warmup failed")
 
     db = await get_db()
-    cursor = await db.execute("SELECT COUNT(*) FROM customers")
-    row = await cursor.fetchone()
-    await db.close()
+    try:
+        cursor = await db.execute("SELECT COUNT(*) FROM customers")
+        row = await cursor.fetchone()
+    finally:
+        await db.close()
 
     customer_count = row[0] if row else 0
     if customer_count == 0:
@@ -231,20 +233,27 @@ def _load_json_dict(raw: str | None) -> dict[str, str] | None:
 def _load_chart_spec(raw: str | None):
     """Parse the chart_spec JSON column into a ChartSpec, returning None on
     empty/bad input. Declared as a local import so ChartSpec stays out of the
-    hot path for feeds that don't carry a chart."""
+    hot path for feeds that don't carry a chart.
+
+    Any parse or validation failure is logged at WARNING so a stored schema
+    drift is observable without surfacing as a 500 to the caller.
+    """
     if not raw:
         return None
     try:
         value = json.loads(raw)
     except (TypeError, ValueError):
+        logger.warning("chart_spec column is not valid JSON")
         return None
     if not isinstance(value, dict):
+        logger.warning("chart_spec column is not a JSON object")
         return None
     from lodestar.models import ChartSpec
 
     try:
         return ChartSpec(**value)
     except Exception:
+        logger.warning("chart_spec column failed ChartSpec validation", exc_info=True)
         return None
 
 
@@ -334,6 +343,11 @@ async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
         if interaction:
             break
         await asyncio.sleep(0.25)
+    if interaction is None:
+        logger.warning(
+            "dismiss for %s arrived before interaction row — learning arc skipped",
+            insight_id,
+        )
     await append_to_interaction(
         insight_id, {"role": "engagement", "content": "dismissed"}
     )
@@ -448,6 +462,11 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         if interaction:
             break
         await asyncio.sleep(0.25)
+    if interaction is None:
+        logger.warning(
+            "chat for %s arrived before interaction row — learning arc skipped",
+            insight_id,
+        )
     if interaction:
         interaction_id = interaction["interaction_id"]
         already_reflected = await has_reflection_for_interaction(

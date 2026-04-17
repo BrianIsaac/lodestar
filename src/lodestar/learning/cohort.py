@@ -1,9 +1,17 @@
 """Federated cohort insight aggregation — privacy-preserving cross-customer learning."""
 
+from lodestar.config import settings
 from lodestar.database import get_db
 from lodestar.models import CohortInsight
 
-MIN_CUSTOMERS_POC = 5
+
+def _min_customers() -> int:
+    """Minimum distinct customers required before a cohort insight surfaces.
+
+    Driven by ``settings.cohort_min_customers`` so a demo can lower the
+    threshold without code edits.
+    """
+    return max(1, settings.cohort_min_customers)
 
 
 async def aggregate_to_cohort(
@@ -49,7 +57,7 @@ async def aggregate_to_cohort(
             )
             await db.commit()
 
-            if new_count >= MIN_CUSTOMERS_POC:
+            if new_count >= _min_customers():
                 return CohortInsight(
                     cohort_key=cohort_key,
                     pattern_type=pattern_type,
@@ -86,7 +94,7 @@ async def get_cohort_insights(cohort_key: str) -> list[CohortInsight]:
     try:
         cursor = await db.execute(
             "SELECT * FROM cohort_insights WHERE cohort_key = ? AND supporting_count >= ?",
-            (cohort_key, MIN_CUSTOMERS_POC),
+            (cohort_key, _min_customers()),
         )
         rows = await cursor.fetchall()
         return [

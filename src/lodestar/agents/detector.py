@@ -26,7 +26,7 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-from lodestar.agents.compliance import apply_compliance
+from lodestar.agents.compliance import apply_compliance_multilingual
 from lodestar.agents.triggers import (
     TriggerEvent,
     TriggerType,
@@ -450,26 +450,22 @@ def _coerce_card(
                 action = p.get("action") or "chat"
                 if action not in ("chat", "plan", "products"):
                     action = "chat"
+                raw_params = p.get("params")
+                params = raw_params if isinstance(raw_params, dict) else {}
                 cleaned.append(
                     QuickPrompt(
                         text=str(p["text"]),
                         action=action,
-                        params=p.get("params") if isinstance(p.get("params"), dict) else {},
+                        params=params,
                     )
                 )
             if cleaned:
                 quick_prompts_i18n[lang] = cleaned
 
-    # Apply compliance per locale so guidance text gets the disclaimer.
-    filtered_summary: dict[str, str] = {}
-    compliance_class: ComplianceClass | None = None
-    for lang, text in summary_i18n.items():
-        if not isinstance(text, str):
-            continue
-        filtered, cls = apply_compliance(text, language=lang if lang in ("vi", "en", "ko") else "vi")
-        filtered_summary[lang] = filtered
-        if compliance_class is None:
-            compliance_class = cls
+    # Classify across all locales and apply the most-restrictive gate
+    # uniformly so the card does not ship with a Vietnamese refusal next
+    # to untreated English "advice-style" copy.
+    filtered_summary, compliance_class = apply_compliance_multilingual(summary_i18n)
 
     import uuid
     return InsightCard(

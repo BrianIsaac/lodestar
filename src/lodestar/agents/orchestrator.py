@@ -122,6 +122,78 @@ TOOL_DEFINITIONS = [
 ]
 
 
+_FOLLOWUP_SUGGESTIONS: dict[str, dict[str, list[str]]] = {
+    "spending_analysis": {
+        "vi": [
+            "So sánh với tháng trước",
+            "Khoản chi nào lớn nhất?",
+            "Làm sao để tiết kiệm thêm?",
+        ],
+        "en": [
+            "Compare with last month",
+            "What was the biggest expense?",
+            "How can I save more?",
+        ],
+        "ko": [
+            "지난달과 비교해 주세요",
+            "가장 큰 지출은 무엇이었나요?",
+            "어떻게 더 절약할 수 있을까요?",
+        ],
+    },
+    "product_search": {
+        "vi": [
+            "Điều kiện đủ cho sản phẩm này là gì?",
+            "Có lựa chọn nào khác?",
+            "So sánh hai sản phẩm hàng đầu",
+        ],
+        "en": [
+            "What are the eligibility requirements?",
+            "What other options exist?",
+            "Compare the top two",
+        ],
+        "ko": [
+            "자격 요건은 무엇인가요?",
+            "다른 선택지가 있나요?",
+            "상위 두 상품을 비교해 주세요",
+        ],
+    },
+    "scenario_simulation": {
+        "vi": [
+            "Thử giảm giá nhà đi 20%",
+            "Nếu lãi suất tăng thì sao?",
+            "Nhìn vào cả bốn đơn vị Shinhan",
+        ],
+        "en": [
+            "Try reducing the home price by 20%",
+            "What if the interest rate rises?",
+            "Show the four Shinhan entities",
+        ],
+        "ko": [
+            "주택 가격을 20% 낮춰보기",
+            "금리가 오르면 어떻게 될까요?",
+            "신한 4개 계열사 전체 영향 보기",
+        ],
+    },
+}
+
+
+def _followups_for(tool_names: list[str], language: str) -> list[str]:
+    """Return 3 contextual follow-up prompts based on which tool fired.
+
+    Returns empty when no tool ran so the UI falls back to its default
+    chip set. Contextual chips make the tool-calling loop feel purposeful
+    instead of opaque.
+    """
+    if not tool_names:
+        return []
+    lang = language if language in ("vi", "en", "ko") else "vi"
+    for name in tool_names:
+        bundle = _FOLLOWUP_SUGGESTIONS.get(name)
+        if bundle:
+            return list(bundle.get(lang, bundle.get("vi", [])))
+    return []
+
+
 def _pick_text(text_or_dict: object, language: str) -> str:
     """Resolve a workflow's `insight_text` output to a single string.
 
@@ -282,7 +354,7 @@ async def chat(
                 content=filtered_text,
                 chart_spec=chart_spec,
             ),
-            suggested_followups=[],
+            suggested_followups=_followups_for(tool_names, language),
             tool_calls=tool_names,
         )
 

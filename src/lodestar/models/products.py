@@ -19,6 +19,14 @@ class ProductInfo(BaseModel):
     description_vi: str = ""
     description_en: str = ""
     description_ko: str = ""
+    name: str = Field(
+        default="",
+        description="Display name resolved to the requested language by the API.",
+    )
+    description: str = Field(
+        default="",
+        description="Display description resolved to the requested language by the API.",
+    )
     interest_rate: float | None = None
     min_income: float | None = None
     currency: str = "VND"

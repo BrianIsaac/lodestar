@@ -1,7 +1,9 @@
 """Compliance filter — classifies output before delivery to customer.
 
-Uses rule-based classification for the PoC. In production, this would
-be an LLM classifier with higher accuracy on edge cases.
+Pattern coverage spans the three supported locales (Vietnamese, English,
+Korean) so a tri-lingual card is classified consistently regardless of
+which locale's text is inspected. Classification is rule-based for the
+PoC; swapping in an LLM classifier would slot in via ``classify_output``.
 """
 
 import re
@@ -9,22 +11,33 @@ import re
 from lodestar.models import ComplianceClass
 
 ADVICE_PATTERNS = [
+    # Vietnamese
     r"(?i)bạn nên",
     r"(?i)chúng tôi khuyên",
     r"(?i)nên mua",
     r"(?i)nên đầu tư",
     r"(?i)hãy (mua|bán|đầu tư|chuyển)",
+    # English
     r"(?i)we recommend",
-    r"(?i)you should (buy|invest|switch|open)",
+    r"(?i)you should (buy|invest|switch|open|take out)",
     r"(?i)i (recommend|advise|suggest you)",
+    # Korean
+    r"추천(합니다|드립니다)",
+    r"(투자|매수|매도|가입)\s*하(십시오|세요)",
+    r"(사|드시)는 것이 좋습니다",
 ]
 
 GUIDANCE_PATTERNS = [
+    # Vietnamese
     r"(?i)có thể cân nhắc",
     r"(?i)một lựa chọn là",
+    # English
     r"(?i)you (might|could|may) (consider|want to)",
     r"(?i)consider",
     r"(?i)tip:",
+    # Korean
+    r"고려(해|하는\s*것을|할\s*수)",
+    r"(조정|검토)해\s*보(십시오|세요)",
 ]
 
 DISCLAIMERS: dict[str, str] = {
@@ -73,6 +86,13 @@ def classify_output(text: str) -> ComplianceClass:
     return ComplianceClass.INFORMATION
 
 
+_SEVERITY_RANK = {
+    ComplianceClass.INFORMATION: 0,
+    ComplianceClass.GUIDANCE: 1,
+    ComplianceClass.ADVICE: 2,
+}
+
+
 def apply_compliance(text: str, language: str = "vi") -> tuple[str, ComplianceClass]:
     """Classify and gate a response, adding disclaimers as needed.
 
@@ -96,3 +116,40 @@ def apply_compliance(text: str, language: str = "vi") -> tuple[str, ComplianceCl
         return f"{text}\n\n{DISCLAIMERS[lang]}", classification
 
     return text, classification
+
+
+def apply_compliance_multilingual(
+    texts_by_lang: dict[str, str],
+) -> tuple[dict[str, str], ComplianceClass]:
+    """Classify a multi-locale response bundle with a single severity.
+
+    Classifies each locale independently, picks the most-restrictive class
+    across all of them, then applies that class's gate to every locale so
+    a Vietnamese refusal does not leak English advice-style text.
+
+    Args:
+        texts_by_lang: Mapping of language code -> authored text.
+
+    Returns:
+        Tuple of (gated_texts_by_lang, shared_classification).
+    """
+    worst = ComplianceClass.INFORMATION
+    for lang, text in texts_by_lang.items():
+        if not isinstance(text, str) or not text:
+            continue
+        cls = classify_output(text)
+        if _SEVERITY_RANK[cls] > _SEVERITY_RANK[worst]:
+            worst = cls
+
+    gated: dict[str, str] = {}
+    for lang, text in texts_by_lang.items():
+        if not isinstance(text, str):
+            continue
+        resolved = lang if lang in DISCLAIMERS else "vi"
+        if worst == ComplianceClass.ADVICE:
+            gated[lang] = REFUSALS[resolved]
+        elif worst == ComplianceClass.GUIDANCE:
+            gated[lang] = f"{text}\n\n{DISCLAIMERS[resolved]}"
+        else:
+            gated[lang] = text
+    return gated, worst

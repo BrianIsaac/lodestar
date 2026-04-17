@@ -7,7 +7,7 @@ are quality-gated, semantically deduplicated, and scored for retrieval.
 import json
 import struct
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 import numpy as np
 
@@ -180,7 +180,7 @@ async def get_relevant_lessons(
             return []
 
         scored = []
-        now = datetime.utcnow()
+        now = datetime.now(UTC).replace(tzinfo=None)
 
         for row in rows:
             days_since = max(1, (now - datetime.fromisoformat(row["created_at"])).days)

@@ -4,7 +4,9 @@ import asyncio
 import json
 import logging
 import uuid
+from contextlib import asynccontextmanager
 from datetime import date, timedelta
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,10 +29,65 @@ from lodestar.models import (
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    """Startup + shutdown hook for the ASGI app.
+
+    Replaces the deprecated ``@app.on_event("startup")`` pattern so the
+    init path has a single, testable entry point.
+    """
+    settings.ensure_dirs()
+    await init_db()
+
+    from lodestar.rag.embeddings import embed_texts
+    from lodestar.rag.indexer import init_rag
+
+    count = init_rag()
+    logger.info("RAG initialised with %d products", count)
+
+    # Warm bge-m3 unconditionally. init_rag only embeds on first ingest
+    # and skips on schema-version match, which would leave the first
+    # live /products/search request to absorb the ~30s model load.
+    try:
+        embed_texts(["warmup"])
+        logger.info("Embedder warmed")
+    except Exception:
+        logger.exception("Embedder warmup failed")
+
+    db = await get_db()
+    cursor = await db.execute("SELECT COUNT(*) FROM customers")
+    row = await cursor.fetchone()
+    await db.close()
+
+    customer_count = row[0] if row else 0
+    if customer_count == 0:
+        from lodestar.data.seed_data import seed
+        await seed()
+        logger.info("Seeded synthetic data")
+
+    # Start with a clean feed on every boot. Transaction history and the
+    # learning journal are preserved — only the ephemeral card stream
+    # resets, along with the interactions/reflections that reference each
+    # card via FK (otherwise DELETE FROM insight_cards aborts).
+    db = await get_db()
+    try:
+        await db.execute("DELETE FROM reflections")
+        await db.execute("DELETE FROM interactions")
+        await db.execute("DELETE FROM insight_cards")
+        await db.commit()
+    finally:
+        await db.close()
+    logger.info("Insight feed cleared — waiting for live transactions")
+
+    yield
+
+
 app = FastAPI(
     title="Shinhan Financial Coach API",
     description="SB1 AI Personal Financial Coach for SOL Vietnam",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -66,48 +123,19 @@ class DismissRequest(BaseModel):
     customer_id: str
 
 
-# --- Lifecycle ---
+def _lessons_applied_from_interaction(interaction: dict[str, Any]) -> list[str]:
+    """Extract the lesson IDs that fed a card's memory injection, if any.
 
-@app.on_event("startup")
-async def startup() -> None:
-    """Initialise database, RAG index, and seed data on first run.
-
-    The feed starts empty on every boot — insight cards are generated
-    live from transactions as they stream in via POST /demo/transaction
-    (or a future real transaction pipeline). This makes the autonomous
-    monitoring story demonstrable: judges see the agent react to real
-    events instead of a pre-populated feed.
+    The agent_reasoning message persisted at card-birth carries the
+    ``lessons_applied`` list. Returns an empty list when the shape is
+    unexpected (older interactions, partial rows).
     """
-    settings.ensure_dirs()
-    await init_db()
-
-    from lodestar.rag.indexer import init_rag
-    count = init_rag()
-    logger.info("RAG initialised with %d products", count)
-
-    db = await get_db()
-    cursor = await db.execute("SELECT COUNT(*) FROM customers")
-    row = await cursor.fetchone()
-    await db.close()
-
-    if row[0] == 0:
-        from lodestar.data.seed_data import seed
-        await seed()
-        logger.info("Seeded synthetic data")
-
-    # Start with a clean feed on every boot. Transaction history and the
-    # learning journal are preserved — only the ephemeral card stream
-    # resets, along with the interactions/reflections that reference each
-    # card via FK (otherwise DELETE FROM insight_cards aborts).
-    db = await get_db()
-    try:
-        await db.execute("DELETE FROM reflections")
-        await db.execute("DELETE FROM interactions")
-        await db.execute("DELETE FROM insight_cards")
-        await db.commit()
-    finally:
-        await db.close()
-    logger.info("Insight feed cleared — waiting for live transactions")
+    for msg in interaction.get("messages") or []:
+        if isinstance(msg, dict) and msg.get("role") == "agent_reasoning":
+            ids = msg.get("lessons_applied") or []
+            if isinstance(ids, list):
+                return [str(x) for x in ids if x]
+    return []
 
 
 # --- Insight Feed ---
@@ -246,9 +274,13 @@ async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
         append_to_interaction,
         get_interaction_for_insight,
     )
-    from lodestar.learning.journal import cohort_key_for_customer
+    from lodestar.learning.journal import (
+        cohort_key_for_customer,
+        update_importance_post_outcome,
+    )
     from lodestar.learning.reflection import (
         extract_and_store_lesson,
+        has_reflection_for_interaction,
         run_reflection,
     )
 
@@ -274,37 +306,47 @@ async def dismiss_insight(insight_id: str, body: DismissRequest) -> dict:
     )
 
     if row and interaction:
-        suggested = (row["suggested_actions"] or "").strip('"[]')
-        trigger_type = suggested.split('"')[0] if suggested else "unknown"
-        conditions = f"trigger={trigger_type}; card_title≈{row['title'][:60]}"
-        reflection = await run_reflection(
-            customer_id=body.customer_id,
-            interaction_id=interaction["interaction_id"],
-            process_grade="A",
-            outcome_quality="bad",
+        interaction_id = interaction["interaction_id"]
+        already_reflected = await has_reflection_for_interaction(
+            interaction_id, quadrant="bad_luck"
         )
-        lesson = await extract_and_store_lesson(
-            reflection,
-            conditions=conditions,
-            insight=(
-                "Customer dismissed this card. Reduce frequency or rephrase "
-                "future cards with the same trigger + merchant profile."
-            ),
-            confidence=0.75,
-            importance=4.0,
-            error_type="timing",
-        )
-        if lesson is not None:
-            cohort_key = await cohort_key_for_customer(body.customer_id)
-            if cohort_key:
-                await aggregate_to_cohort(
-                    lesson_conditions=conditions,
-                    lesson_insight=lesson.insight,
-                    pattern_type=trigger_type,
-                    category="engagement",
-                    cohort_key=cohort_key,
-                    confidence=lesson.confidence,
-                )
+        if not already_reflected:
+            suggested = (row["suggested_actions"] or "").strip('"[]')
+            trigger_type = suggested.split('"')[0] if suggested else "unknown"
+            conditions = f"trigger={trigger_type}; card_title≈{row['title'][:60]}"
+            reflection = await run_reflection(
+                customer_id=body.customer_id,
+                interaction_id=interaction_id,
+                process_grade="A",
+                outcome_quality="bad",
+            )
+            lesson = await extract_and_store_lesson(
+                reflection,
+                conditions=conditions,
+                insight=(
+                    "Customer dismissed this card. Reduce frequency or rephrase "
+                    "future cards with the same trigger + merchant profile."
+                ),
+                confidence=0.75,
+                importance=4.0,
+                error_type="timing",
+            )
+            if lesson is not None:
+                cohort_key = await cohort_key_for_customer(body.customer_id)
+                if cohort_key:
+                    await aggregate_to_cohort(
+                        lesson_conditions=conditions,
+                        lesson_insight=lesson.insight,
+                        pattern_type=trigger_type,
+                        category="engagement",
+                        cohort_key=cohort_key,
+                        confidence=lesson.confidence,
+                    )
+
+            # Close the loop on any lessons that were *applied* when the card
+            # was produced — the dismissal says those lessons did not help.
+            for lesson_id in _lessons_applied_from_interaction(interaction):
+                await update_importance_post_outcome(lesson_id, helped=False)
 
     return {"status": "dismissed", "insight_id": insight_id}
 
@@ -326,9 +368,13 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         append_to_interaction,
         get_interaction_for_insight,
     )
-    from lodestar.learning.journal import cohort_key_for_customer
+    from lodestar.learning.journal import (
+        cohort_key_for_customer,
+        update_importance_post_outcome,
+    )
     from lodestar.learning.reflection import (
         extract_and_store_lesson,
+        has_reflection_for_interaction,
         run_reflection,
     )
 
@@ -355,54 +401,65 @@ async def chat_drill_down(insight_id: str, body: ChatRequest) -> ChatResponse:
         {"role": "assistant", "content": (response.message.content or "")[:800]},
     )
 
-    # Engagement → reflection → lesson. Only fires once per interaction
-    # (reflection.extract_and_store_lesson merges if a similar lesson
-    # already exists, so repeated chats simply reinforce the same lesson).
+    # First engagement (chat) is the earned_reward signal. Subsequent
+    # turns on the same insight reinforce the conversation but must not
+    # re-fire reflection — that would inflate the reflection count and
+    # double-boost lesson confidence on every turn.
     interaction = await get_interaction_for_insight(insight_id)
     if interaction:
-        db = await get_db()
-        try:
-            cursor = await db.execute(
-                """SELECT title, suggested_actions FROM insight_cards
-                   WHERE insight_id = ? AND customer_id = ?""",
-                (insight_id, body.customer_id),
-            )
-            row = await cursor.fetchone()
-        finally:
-            await db.close()
+        interaction_id = interaction["interaction_id"]
+        already_reflected = await has_reflection_for_interaction(
+            interaction_id, quadrant="earned_reward"
+        )
+        if not already_reflected:
+            db = await get_db()
+            try:
+                cursor = await db.execute(
+                    """SELECT title, suggested_actions FROM insight_cards
+                       WHERE insight_id = ? AND customer_id = ?""",
+                    (insight_id, body.customer_id),
+                )
+                row = await cursor.fetchone()
+            finally:
+                await db.close()
 
-        if row:
-            suggested = (row["suggested_actions"] or "").strip('"[]')
-            trigger_type = suggested.split('"')[0] if suggested else "unknown"
-            conditions = f"trigger={trigger_type}; card_title≈{row['title'][:60]}"
-            reflection = await run_reflection(
-                customer_id=body.customer_id,
-                interaction_id=interaction["interaction_id"],
-                process_grade="A",
-                outcome_quality="good",
-            )
-            lesson = await extract_and_store_lesson(
-                reflection,
-                conditions=conditions,
-                insight=(
-                    "Customer engaged with this card via chat. Continue "
-                    "surfacing cards with the same trigger + merchant profile."
-                ),
-                confidence=0.85,
-                importance=6.0,
-                error_type="missed_factor",
-            )
-            if lesson is not None:
-                cohort_key = await cohort_key_for_customer(body.customer_id)
-                if cohort_key:
-                    await aggregate_to_cohort(
-                        lesson_conditions=conditions,
-                        lesson_insight=lesson.insight,
-                        pattern_type=trigger_type,
-                        category="engagement",
-                        cohort_key=cohort_key,
-                        confidence=lesson.confidence,
-                    )
+            if row:
+                suggested = (row["suggested_actions"] or "").strip('"[]')
+                trigger_type = suggested.split('"')[0] if suggested else "unknown"
+                conditions = f"trigger={trigger_type}; card_title≈{row['title'][:60]}"
+                reflection = await run_reflection(
+                    customer_id=body.customer_id,
+                    interaction_id=interaction_id,
+                    process_grade="A",
+                    outcome_quality="good",
+                )
+                lesson = await extract_and_store_lesson(
+                    reflection,
+                    conditions=conditions,
+                    insight=(
+                        "Customer engaged with this card via chat. Continue "
+                        "surfacing cards with the same trigger + merchant profile."
+                    ),
+                    confidence=0.85,
+                    importance=6.0,
+                    error_type="missed_factor",
+                )
+                if lesson is not None:
+                    cohort_key = await cohort_key_for_customer(body.customer_id)
+                    if cohort_key:
+                        await aggregate_to_cohort(
+                            lesson_conditions=conditions,
+                            lesson_insight=lesson.insight,
+                            pattern_type=trigger_type,
+                            category="engagement",
+                            cohort_key=cohort_key,
+                            confidence=lesson.confidence,
+                        )
+
+                # Close the loop on any lessons that fed this card via memory
+                # injection — engagement confirms they helped, so bump them.
+                for lesson_id in _lessons_applied_from_interaction(interaction):
+                    await update_importance_post_outcome(lesson_id, helped=True)
 
     return response
 
@@ -528,24 +585,60 @@ async def search_products(
 ) -> list[ProductInfo]:
     """RAG-powered product search with optional eligibility filtering.
 
-    All name/description variants are authored upfront in the catalogue,
-    so this endpoint returns the full ProductInfo unchanged and lets the
-    client pick the right field by `language`. `language` is accepted
-    for future server-side filtering but does not trigger translation.
+    The catalogue carries all three locales upfront. The server returns
+    every variant in each hit and additionally surfaces a ``name`` /
+    ``description`` pair resolved to the requested ``language`` so clients
+    that only render one locale can consume the response without client-
+    side selection. When ``customer_id`` is provided, products whose
+    ``min_income`` exceeds the customer's recorded monthly income are
+    dropped from the result set.
 
     Args:
         query: Search query (Vietnamese, English, or Korean — bge-m3 is
             multilingual).
-        customer_id: Optional customer for eligibility check.
-        language: Client locale hint (vi | en | ko). Informational only.
+        customer_id: Optional customer for eligibility filtering.
+        language: Display locale (vi | en | ko). Unknown codes fall back
+            to Vietnamese.
 
     Returns:
-        Ranked product list with all language fields populated.
+        Ranked product list with all language fields populated and the
+        name/description fields projected to the requested locale.
     """
-    _ = language  # reserved for future server-side localisation
     from lodestar.tools.products import search_products as _search
 
-    return await _search(query)
+    lang = language if language in ("vi", "en", "ko") else "vi"
+    hits = await _search(query)
+
+    monthly_income: float | None = None
+    if customer_id:
+        db = await get_db()
+        try:
+            cursor = await db.execute(
+                "SELECT income_monthly FROM customers WHERE customer_id = ?",
+                (customer_id,),
+            )
+            row = await cursor.fetchone()
+        finally:
+            await db.close()
+        if row and row["income_monthly"] is not None:
+            monthly_income = float(row["income_monthly"])
+
+    projected: list[ProductInfo] = []
+    for p in hits:
+        if (
+            monthly_income is not None
+            and p.min_income is not None
+            and p.min_income > monthly_income
+        ):
+            continue
+        localised_name = getattr(p, f"name_{lang}", "") or p.name_vi
+        localised_desc = (
+            getattr(p, f"description_{lang}", "") or p.description_vi
+        )
+        p.name = localised_name
+        p.description = localised_desc
+        projected.append(p)
+    return projected
 
 
 # --- Recent transactions ---
@@ -971,7 +1064,7 @@ async def health() -> dict:
         row = await cursor.fetchone()
         return {
             "status": "healthy",
-            "customers": row[0],
+            "customers": row[0] if row else 0,
         }
     finally:
         await db.close()

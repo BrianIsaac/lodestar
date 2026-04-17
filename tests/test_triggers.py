@@ -10,7 +10,6 @@ from lodestar.agents.triggers import (
     check_payday_detected,
     check_recurring_change,
     check_velocity_anomaly,
-    run_all_triggers,
 )
 from lodestar.models import Transaction
 
@@ -117,18 +116,6 @@ class TestTriggerRules:
         result = check_life_event_pattern(txns, "C001")
         assert result is not None
         assert result.context["event_type"] == "home_purchase"
-
-    def test_run_all_triggers(self) -> None:
-        txns = [
-            _make_txn(amount=12_000_000, category="salary", merchant="Payroll", days_ago=1),
-            _make_txn(merchant="Kids Plaza", category="shopping", days_ago=5),
-            _make_txn(merchant="Con Cưng", category="shopping", days_ago=3),
-        ]
-        events = run_all_triggers(txns, "C001")
-        assert len(events) >= 1
-        types = {e.trigger_type for e in events}
-        assert TriggerType.LIFE_EVENT in types or TriggerType.PAYDAY_DETECTED in types
-
 
 class TestComplianceFilter:
     """Test compliance classification and gating."""

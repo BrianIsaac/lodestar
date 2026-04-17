@@ -492,35 +492,3 @@ def check_weekend_spike(
     return None
 
 
-ALL_TRIGGERS = [
-    check_velocity_anomaly,
-    check_recurring_change,
-    check_payday_detected,
-    check_budget_threshold,
-    check_life_event_pattern,
-    check_large_outflow,
-    check_first_time_merchant,
-    check_category_concentration,
-    check_subscription_bloat,
-    check_weekend_spike,
-]
-
-
-def run_all_triggers(
-    transactions: list[Transaction], customer_id: str
-) -> list[TriggerEvent]:
-    """Run all trigger rules against a set of transactions.
-
-    Args:
-        transactions: Customer's transactions to check.
-        customer_id: Customer identifier.
-
-    Returns:
-        List of triggered events (may be empty).
-    """
-    events = []
-    for trigger_fn in ALL_TRIGGERS:
-        result = trigger_fn(transactions, customer_id)
-        if result is not None:
-            events.append(result)
-    return events

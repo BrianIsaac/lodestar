@@ -122,6 +122,40 @@ async def extract_and_store_lesson(
     return stored
 
 
+async def has_reflection_for_interaction(
+    interaction_id: str, quadrant: str | None = None
+) -> bool:
+    """Return True when a reflection already exists for this interaction.
+
+    Used to guard the chat/dismiss pipelines so a multi-turn engagement does
+    not inflate the reflection count (and, via cascade, the confidence of
+    the same lesson) every turn.
+
+    Args:
+        interaction_id: Interaction to check.
+        quadrant: Optional quadrant filter (e.g. ``earned_reward``).
+
+    Returns:
+        True if at least one matching reflection row is present.
+    """
+    db = await get_db()
+    try:
+        if quadrant is None:
+            cursor = await db.execute(
+                "SELECT 1 FROM reflections WHERE interaction_id = ? LIMIT 1",
+                (interaction_id,),
+            )
+        else:
+            cursor = await db.execute(
+                "SELECT 1 FROM reflections WHERE interaction_id = ? AND quadrant = ? LIMIT 1",
+                (interaction_id, quadrant),
+            )
+        row = await cursor.fetchone()
+        return row is not None
+    finally:
+        await db.close()
+
+
 async def delete_reflections_for_customer(customer_id: str) -> int:
     """Drop all reflections + owned interactions for one customer."""
     db = await get_db()

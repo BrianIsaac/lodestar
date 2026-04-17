@@ -220,10 +220,15 @@ function MessageBubble({ message, lang }: { message: ChatMessage; lang: Lang }) 
   const isUser = message.role === "user";
   // Prefer the tri-lingual bundle authored at write time (by the
   // orchestrator for assistant turns, and for user turns via the same
-  // verbatim-translation pass). Falls back to the canonical single-
-  // locale `content` if the bundle is absent or the requested locale
-  // was not stored.
-  const displayed = message.content_i18n?.[lang] ?? message.content;
+  // verbatim-translation pass). When the requested locale is missing
+  // (typical case: orchestrator produced a partial bundle because Qwen
+  // echoed the source into some locales), fall through to the OTHER
+  // translated locales before defaulting to the raw `content` string —
+  // showing an English translation inside a Vietnamese bubble beats
+  // showing Korean script there.
+  const i18n = message.content_i18n ?? undefined;
+  const displayed =
+    i18n?.[lang] ?? i18n?.en ?? i18n?.vi ?? i18n?.ko ?? message.content;
   return (
     <div
       className={cn(

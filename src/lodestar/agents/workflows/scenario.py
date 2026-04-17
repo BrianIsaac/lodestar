@@ -31,6 +31,8 @@ async def run_simulation(state: ScenarioState) -> dict:
 
 def build_chart(state: ScenarioState) -> dict:
     """Generate a comparison chart from simulation results."""
+    from lodestar.i18n import LANGS, localise_triple
+
     result = state.get("result")
     if not result:
         return {"chart_spec": None}
@@ -38,18 +40,40 @@ def build_chart(state: ScenarioState) -> dict:
     steps = [
         {"label": "Thu nhập hiện tại", "value": result.monthly_cashflow_before, "type": "income"},
     ]
+    # Snapshot the paying entities in declaration order so the i18n
+    # arrays line up 1:1 with data["steps"].
+    paying_entities: list[str] = []
     for impact in result.entity_impacts:
         payment = impact.metrics.get("monthly_payment", 0)
         if payment > 0:
             steps.append({"label": f"{impact.entity} payment", "value": -payment, "type": "expense"})
+            paying_entities.append(impact.entity)
 
     steps.append({"label": "Còn lại", "value": result.monthly_cashflow_after, "type": "net"})
+
+    step_labels_i18n: dict[str, list[str]] = {}
+    for lang in LANGS:
+        lang_labels = [localise_triple("step.current_income")[lang]]
+        entity_template = localise_triple("step.entity_payment")
+        lang_labels.extend(
+            entity_template[lang].format(entity=ent.upper())
+            for ent in paying_entities
+        )
+        lang_labels.append(localise_triple("step.remaining")[lang])
+        step_labels_i18n[lang] = lang_labels
 
     chart = ChartSpec(
         chart_type="waterfall",
         title=f"Kịch bản: {result.scenario_type}",
+        title_i18n=localise_triple("chart.scenario_title", t=result.scenario_type),
         data={"steps": steps, "currency": "VND"},
+        step_labels_i18n=step_labels_i18n,
         summary=f"Dòng tiền: {result.monthly_cashflow_before:,.0f} → {result.monthly_cashflow_after:,.0f} VND",
+        summary_i18n=localise_triple(
+            "chart.scenario_summary",
+            b=result.monthly_cashflow_before,
+            a=result.monthly_cashflow_after,
+        ),
     )
     return {"chart_spec": chart}
 

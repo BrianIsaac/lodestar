@@ -3,9 +3,14 @@
 export interface ChartSpec {
   chart_type: string;
   title: string;
+  title_i18n?: Record<string, string> | null;
   data: Record<string, unknown>;
   axes?: Record<string, string> | null;
+  axes_i18n?: Record<string, Record<string, string>> | null;
   summary: string;
+  summary_i18n?: Record<string, string> | null;
+  labels_i18n?: Record<string, string[]> | null;
+  step_labels_i18n?: Record<string, string[]> | null;
 }
 
 export interface QuickPrompt {

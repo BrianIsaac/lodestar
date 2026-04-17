@@ -49,6 +49,43 @@ Toggle Vi → En → Ko in the header; every card, hint, chip, nav label, and di
 
 ---
 
+## Run the demo
+
+Requires: Python 3.13, `uv`, `bun` (or `pnpm`), Docker + Ollama with `qwen3:14b` pulled.
+
+```bash
+# 1. pull the model (local LLM backend)
+ollama pull qwen3:14b
+
+# 2. backend on :8001
+CUDA_VISIBLE_DEVICES=0 uv run uvicorn lodestar.api:app \
+  --host 127.0.0.1 --port 8001
+
+# 3. frontend on :3001 (separate terminal, cd frontend first)
+bun install && bun run dev -p 3001
+```
+
+Open **<http://localhost:3001/?demo=1>** — the `?demo=1` flag reveals the
+Simulate floating button that injects preset transactions (baby events,
+recurring-charge anomalies, payday, home-purchase signals). Without the
+flag the app only reacts to externally-written transactions, matching
+how it would be embedded in the live SOL feed.
+
+Demo narrative (3 min):
+1. Toggle Vi → En → Ko in the header — header, nav, chips all flip.
+2. Open Simulate → click the three baby presets (Kids Plaza → Con Cưng →
+   Phụ sản Hospital). Wait ~30 s for the life-event card to stream in.
+3. Tap the card → drill-down chat. Ask a question in any locale —
+   Qwen authors the reply in all three; every toggle is zero-latency.
+4. Dismiss the card → open Simulate again → Coach memory now shows a
+   reflection and a new lesson.
+5. Plans tab → scenario simulator → any of the four life events →
+   cashflow impact across all four Shinhan subsidiaries.
+6. Products tab → search in any locale — bge-m3 multilingual retrieval
+   hits the same Vietnamese catalogue.
+
+---
+
 ## Architecture
 
 ### Request paths

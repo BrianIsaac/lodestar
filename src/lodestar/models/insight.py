@@ -30,13 +30,31 @@ class ComplianceClass(StrEnum):
 
 
 class ChartSpec(BaseModel):
-    """Structured chart specification rendered by the frontend."""
+    """Structured chart specification rendered by the frontend.
+
+    The single-locale ``title`` and ``summary`` stay for backwards
+    compatibility and for tools that do not produce tri-lingual output
+    (e.g. the scenario simulator already emits per-entity summaries via
+    its own i18n path). When the producer CAN supply tri-lingual strings
+    (spending / goal / trend / waterfall generators) it populates
+    ``title_i18n`` and ``summary_i18n`` so the frontend can swap the
+    chart caption on language toggle without a round-trip.
+    """
 
     chart_type: str = Field(description="donut | bar | line | progress | waterfall | grouped_bar")
     title: str = ""
+    title_i18n: dict[str, str] | None = None
     data: dict = Field(default_factory=dict)
     axes: dict | None = None
+    # Axis labels per locale — shape {lang: {x: str, y: str}}.
+    axes_i18n: dict[str, dict[str, str]] | None = None
     summary: str = ""
+    summary_i18n: dict[str, str] | None = None
+    # Donut / bar / line category labels per locale — {lang: [str, ...]}.
+    labels_i18n: dict[str, list[str]] | None = None
+    # Waterfall step labels per locale — {lang: [str, ...]}, index-aligned
+    # with data["steps"].
+    step_labels_i18n: dict[str, list[str]] | None = None
 
 
 class QuickPrompt(BaseModel):

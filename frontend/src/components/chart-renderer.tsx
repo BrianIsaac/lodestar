@@ -21,8 +21,20 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { formatVNDCompact } from "@/lib/format";
-import { useT } from "@/lib/i18n";
+import { useT, type Lang } from "@/lib/i18n";
 import type { ChartSpec } from "@/lib/types";
+
+/** Pick the current-locale value from a tri-lingual bundle, with a fallback
+ *  chain so a chart never renders blank because one locale went missing
+ *  (e.g. Qwen emitted partial JSON, or a manual seed predates the i18n
+ *  bundle). Order: requested lang → en → vi → ko → fallback string. */
+function pick<T extends string | string[]>(
+  bundle: Record<string, T> | null | undefined,
+  lang: Lang,
+  fallback: T,
+): T {
+  return bundle?.[lang] ?? bundle?.en ?? bundle?.vi ?? bundle?.ko ?? fallback;
+}
 
 const COLORS = [
   "var(--color-chart-1)",
@@ -75,7 +87,9 @@ function buildChartConfig(labels: string[]): ChartConfig {
 }
 
 function DonutChart({ spec, compact }: Props) {
-  const labels = (spec.data.labels as string[]) ?? [];
+  const { lang } = useT();
+  const rawLabels = (spec.data.labels as string[]) ?? [];
+  const labels = pick(spec.labels_i18n, lang, rawLabels);
   const values = (spec.data.values as number[]) ?? [];
   const data = labels.map((name, i) => ({ name, value: values[i] ?? 0 }));
   const config = buildChartConfig(labels);
@@ -102,7 +116,9 @@ function DonutChart({ spec, compact }: Props) {
 }
 
 function BarChartView({ spec, compact }: Props) {
-  const labels = (spec.data.labels as string[]) ?? [];
+  const { lang } = useT();
+  const rawLabels = (spec.data.labels as string[]) ?? [];
+  const labels = pick(spec.labels_i18n, lang, rawLabels);
   const values = (spec.data.values as number[]) ?? [];
   const data = labels.map((name, i) => ({ name, value: values[i] ?? 0 }));
   const config = buildChartConfig(labels);
@@ -206,8 +222,15 @@ function computeWaterfallRows(steps: WaterfallStep[]): WaterfallRow[] {
  * stacked bar chart with an invisible "base" segment per bar.
  */
 function WaterfallChart({ spec, compact }: Props) {
-  const { t } = useT();
-  const steps = (spec.data.steps as WaterfallStep[]) ?? [];
+  const { t, lang } = useT();
+  const rawSteps = (spec.data.steps as WaterfallStep[]) ?? [];
+  // Swap step labels with their tri-lingual counterparts when available —
+  // index-aligned with rawSteps by the backend generator.
+  const translatedLabels = pick(spec.step_labels_i18n, lang, [] as string[]);
+  const steps = rawSteps.map((s, i) => ({
+    ...s,
+    label: translatedLabels[i] ?? s.label,
+  }));
   const data = computeWaterfallRows(steps);
 
   const colorFor = (type: string) =>
@@ -257,15 +280,20 @@ function WaterfallChart({ spec, compact }: Props) {
 }
 
 function ProgressChart({ spec }: { spec: ChartSpec }) {
+  const { lang } = useT();
   const pct = Math.min(100, Math.max(0, (spec.data.progress_pct as number) ?? 0));
+  const title = pick(spec.title_i18n, lang, spec.title);
+  const summary = pick(spec.summary_i18n, lang, spec.summary);
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between text-sm">
-        <span className="font-medium">{spec.title}</span>
+        <span className="font-medium">{title}</span>
         <span className="font-semibold text-primary">{pct.toFixed(0)}%</span>
       </div>
       <Progress value={pct} />
-      {spec.summary && <p className="text-xs text-muted-foreground">{spec.summary}</p>}
+      {summary ? (
+        <p className="text-xs text-muted-foreground">{summary}</p>
+      ) : null}
     </div>
   );
 }

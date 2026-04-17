@@ -554,9 +554,13 @@ async def chat(
                     for k, v in user_message_i18n.items()
                     if v not in dup_values
                 }
-        # Always ensure the original locale reflects the verbatim user text.
-        if _raw_user:
-            user_message_i18n.setdefault(language, _raw_user)
+        # Only fall back to the raw user text when NOTHING translated — if
+        # any locale has a genuine translation, we want the frontend's
+        # fallback chain to pick that up for missing locales rather than
+        # force the request language to the raw source text, which would
+        # render (e.g.) Korean script inside a Vietnamese bubble.
+        if _raw_user and not user_message_i18n:
+            user_message_i18n[language] = _raw_user
 
         # One multilingual compliance pass so a Vi refusal cannot ship
         # next to untreated En/Ko advice-style copy.
